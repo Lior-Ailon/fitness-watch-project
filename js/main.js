@@ -30,6 +30,10 @@
     demo.stop();
     const present = roster.filter(p => p.present);
     session.setUsers(present.length >= 1 ? present : roster.slice(0, 1));
+    if (typeof ble !== 'undefined' && ble.connected && watchUser) {   // keep the real watch on the same person
+      watchUser = session.byId(watchUser.id) || session.users[0];
+      demo.skip.clear(); demo.skip.add(watchUser.id);
+    }
     demo.init();
     demo.prime(1500);         // open mid-class so the screen is alive immediately
     ui.build();
@@ -70,6 +74,41 @@
   });
   $('#btnBack').addEventListener('click', () => { ui.showLive(); if (!session.ended) demo.start(); });
   $('#btnNew').addEventListener('click', () => { ui.fillRoster(roster); settings.showModal(); });
+
+  // ----- real watch over Bluetooth (standard Heart Rate service) -----
+  const chip = $('#watchChip');
+  let watchUser = null, watchName = '', watchBpm = 0;
+  function setChip(text, state) { chip.hidden = !text; chip.textContent = text || ''; chip.dataset.state = state || ''; }
+  const ble = new HR.BleSource(
+    (bpm, dt) => {
+      if (!watchUser) return;
+      watchBpm = bpm;
+      session.push(watchUser.id, bpm, dt);
+      setChip('⌚ ' + watchName + ' → ' + watchUser.name + ' · ' + bpm + ' ♥');
+      ui.update();
+    },
+    (state, info) => {
+      if (state === 'choosing') setChip('בחר/י את השעון מהרשימה…', 'wait');
+      else if (state === 'connecting') setChip('מתחבר ל-' + info.name + '…', 'wait');
+      else if (state === 'connected') { watchName = info.name; setChip('⌚ ' + watchName + ' מחובר, ממתין לדופק…', 'wait'); }
+      else if (state === 'disconnected') { demo.skip.clear(); watchUser = null; setChip('השעון התנתק', 'error'); $('#btnWatch').textContent = '⌚ חיבור שעון'; }
+    }
+  );
+  $('#btnWatch').addEventListener('click', async () => {
+    if (ble.connected) { ble.disconnect(); return; }
+    if (!HR.BleSource.supported) { setChip('Bluetooth זמין רק ב-Chrome או Edge, בכתובת localhost או https', 'error'); return; }
+    watchUser = session.users[0];                 // the first participant wears the watch
+    demo.skip.clear(); demo.skip.add(watchUser.id);
+    try {
+      await ble.connect();
+      $('#btnWatch').textContent = '⌚ ניתוק שעון';
+    } catch (e) {
+      demo.skip.clear(); watchUser = null;
+      if (e && e.name === 'NotFoundError') setChip('לא נבחר שעון', 'error');
+      else if (e && e.message === 'no-hr-service') setChip((e.deviceName || 'המכשיר') + ' לא משדר דופק. הפעל/י בשעון "שידור דופק"', 'error');
+      else setChip('החיבור נכשל: ' + (e && e.message ? e.message : e), 'error');
+    }
+  });
 
   window.addEventListener('resize', () => ui.update());
   applyLayout();

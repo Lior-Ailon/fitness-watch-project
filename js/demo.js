@@ -39,6 +39,7 @@
       this.speed = 1;
       this.timer = null;
       this.sim = new Map();
+      this.skip = new Set();     // users fed by a real device instead of the simulator
     }
 
     init() {
@@ -56,6 +57,7 @@
     step() {
       this.t += 1;
       for (const u of this.session.users) {
+        if (this.skip.has(u.id)) continue;
         const s = this.sim.get(u.id);
         const target = (intensityAt(this.t + s.lag) / 100) * s.fit * u.maxHr;
         s.hr += (target - s.hr) * 0.08 + gauss();

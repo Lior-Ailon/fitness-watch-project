@@ -288,6 +288,9 @@ body[data-layout="rtl"] .ecg.r { transform: none; }
   cursor: pointer;
 }
 .pill-btn:hover { background: var(--panel-hi); }
+.watch-chip { font-size: .95rem; font-weight: 700; padding: .35rem .8rem; border-radius: 999px; background: rgba(39,214,128,.14); color: #27d680; white-space: nowrap; }
+.watch-chip[data-state="error"] { background: rgba(255,61,90,.14); color: #ff3d5a; }
+.watch-chip[data-state="wait"] { background: rgba(255,194,31,.14); color: #ffc21f; }
 .pill-btn.solid { color: #1a1400; background: var(--accent); border-color: transparent; font-weight: 800; }
 :focus-visible { outline: .18rem solid var(--accent); outline-offset: .15rem; }
 

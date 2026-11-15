@@ -54,6 +54,8 @@
     <footer class="foot">
       <ul class="legend" id="legend" aria-label="אזורי דופק"></ul>
       <div class="tools">
+        <span id="watchChip" class="watch-chip" hidden aria-live="polite"></span>
+        <button type="button" id="btnWatch" class="pill-btn">⌚ חיבור שעון</button>
         <button type="button" id="btnEnd" class="pill-btn">סיום אימון</button>
         <button type="button" id="btnSettings" class="icon-btn" aria-label="הגדרות (S)" title="הגדרות (S)">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -154,6 +156,7 @@
 
   <script src="js/core.js"></script>
   <script src="js/demo.js"></script>
+  <script src="js/ble.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
