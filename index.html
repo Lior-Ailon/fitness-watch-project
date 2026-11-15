@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>לוח דופק חי</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-view="live" data-layout="ref">
+
+  <!-- ================= LIVE BOARD ================= -->
+  <div id="live" class="view">
+    <header class="bar">
+      <div class="kpi">
+        <svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="24" cy="27" r="16"/><path d="M24 27V16M19 6h10M24 6v5M38 11l-3 3"/></svg>
+        <div><b id="elapsed" class="num">00:00</b><span>מתחילת האימון</span></div>
+      </div>
+      <div class="kpi">
+        <svg class="ico flame" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4c1 8 10 12 10 24a10 10 0 0 1-20 0c0-5 3-8 5-11 1 4 3 5 4 5 1-6-1-11 1-18z" fill="currentColor"/></svg>
+        <div><b id="kcalTotal" class="num">0</b><span>קלוריות (סה"כ)</span></div>
+      </div>
+
+      <div class="title">
+        <svg class="ecg l" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
+        <h1>LIVE WORKOUT</h1>
+        <svg class="ecg r" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
+      </div>
+
+      <div class="kpi">
+        <svg class="ico heart" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 40S6 29 6 17a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 12-18 23-18 23z"/><path d="M12 24h7l3-6 4 11 3-5h7"/></svg>
+        <div><b id="avgHr" class="num">--</b><span>דופק ממוצע</span></div>
+      </div>
+      <div class="kpi">
+        <svg class="ico clock" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="24" cy="24" r="18"/><path d="M24 13v11l7 5"/></svg>
+        <div><b id="nowClock" class="num">--:--</b><span>כעת</span></div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section id="grid" class="grid" aria-label="מתאמנות"></section>
+
+      <aside class="board" aria-label="דירוג בזמן אמת">
+        <h2>
+          <svg viewBox="0 0 48 48" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8h20v10a10 10 0 0 1-20 0V8zM14 12H6c0 7 3 11 8 12M34 12h8c0 7-3 11-8 12M24 28v8M16 42h16M19 36h10"/></svg>
+          דירוג בזמן אמת
+        </h2>
+        <ol id="board"></ol>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <ul class="legend" id="legend" aria-label="אזורי דופק"></ul>
+      <div class="tools">
+        <button type="button" id="btnEnd" class="pill-btn">סיום אימון</button>
+        <button type="button" id="btnSettings" class="icon-btn" aria-label="הגדרות (S)" title="הגדרות (S)">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+        <button type="button" id="btnFull" class="icon-btn" aria-label="מסך מלא (F)" title="מסך מלא (F)">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ================= END-OF-WORKOUT SUMMARY ================= -->
+  <div id="summary" class="view" hidden>
+    <header class="s-title">
+      <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><path d="M8 6v38" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M8 8h30l-5 8 5 8H8z" fill="#fff"/><path d="M8 8h6v4H8zM20 8h6v4h-6zM14 12h6v4h-6zM26 12h6v4h-6zM8 16h6v4H8zM20 16h6v4h-6zM14 20h6v4h-6zM26 20h6v4h-6z" fill="#0a0f26"/></svg>
+      <h1>סיכום האימון</h1>
+      <span id="sumMeta" class="s-meta"></span>
+      <div class="s-actions">
+        <button type="button" id="btnBack" class="pill-btn">חזרה ללוח</button>
+        <button type="button" id="btnNew" class="pill-btn solid">אימון חדש</button>
+      </div>
+    </header>
+    <div class="s-grid">
+      <section id="podium" class="podium" aria-label="שלוש המובילות"></section>
+      <section class="s-table-wrap" aria-label="טבלת סיכום">
+        <table class="s-table" id="sumTable">
+          <thead>
+            <tr>
+              <th class="c-name" colspan="2">מתאמנת</th>
+              <th class="z5">Z5</th><th class="z4">Z4</th><th class="z3">Z3</th><th class="z2">Z2</th><th class="z1">Z1</th>
+              <th>דופק ממוצע</th><th>קלוריות</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <!-- ================= DIALOGS ================= -->
+  <dialog id="detail" aria-labelledby="dName">
+    <form method="dialog" class="d-head">
+      <div>
+        <h2 id="dName"></h2>
+        <p id="dSub" class="d-sub"></p>
+      </div>
+      <button class="icon-btn" value="close" aria-label="סגירה">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </form>
+    <div class="d-stats" id="dStats"></div>
+    <div class="d-chart">
+      <canvas id="dChart" aria-label="גרף דופק של 10 הדקות האחרונות" role="img"></canvas>
+      <div class="d-axis"><span>לפני 10 דקות</span><span>עכשיו</span></div>
+    </div>
+    <div class="d-zones" id="dZones"></div>
+  </dialog>
+
+  <dialog id="settings" aria-labelledby="sTitle">
+    <form method="dialog" class="s-form" id="settingsForm">
+      <h2 id="sTitle">הגדרות ומתאמנות</h2>
+
+      <div class="s-row">
+        <label class="field">
+          <span>מהירות הדגמה</span>
+          <select id="speedIn">
+            <option value="1">רגילה</option>
+            <option value="5">פי 5</option>
+            <option value="20">פי 20</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>מיקום הדירוג</span>
+          <select id="layoutIn">
+            <option value="ref">בצד ימין (כמו בעיצוב)</option>
+            <option value="rtl">בצד שמאל (היפוך לעברית)</option>
+          </select>
+        </label>
+      </div>
+
+      <div>
+        <h3>מתאמנות באימון הזה</h3>
+        <p class="hint">הדופק המקסימלי ואזורי הדופק נקבעים לפי הגיל שמוזן כאן, ברגע שלוחצים "התחל אימון". כך ההשוואה בין כולן הוגנת.</p>
+        <div class="roster-wrap">
+          <table class="roster" id="rosterTable">
+            <thead><tr><th>משתתפת</th><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>דופק מקס'</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="s-btns">
+        <button class="primary" value="start" id="btnStart">התחל אימון</button>
+        <button class="ghost" value="close">סגירה</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/core.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
