@@ -104,7 +104,7 @@
       $('#btnWatch').textContent = '⌚ ניתוק שעון';
     } catch (e) {
       demo.skip.clear(); watchUser = null;
-      if (e && e.name === 'NotFoundError') setChip('לא נבחר שעון', 'error');
+      if (e && e.name === 'NotFoundError') setChip('לא נבחר שעון. אם H1 לא ברשימה: הסר/י אותו מהגדרות ה-Bluetooth של Windows ונסה/י שוב', 'error');
       else if (e && e.message === 'no-hr-service') setChip((e.deviceName || 'המכשיר') + ' לא משדר דופק. הפעל/י בשעון "שידור דופק"', 'error');
       else setChip('החיבור נכשל: ' + (e && e.message ? e.message : e), 'error');
     }
