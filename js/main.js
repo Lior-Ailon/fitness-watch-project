@@ -30,7 +30,7 @@
     demo.stop();
     const present = roster.filter(p => p.present);
     session.setUsers(present.length >= 1 ? present : roster.slice(0, 1));
-    if (typeof ble !== 'undefined' && ble.connected && watchUser) {   // keep the real watch on the same person
+    if (typeof ble !== 'undefined' && (ble.connected || bridgeTimer) && watchUser) {   // keep the real watch on the same person
       watchUser = session.byId(watchUser.id) || session.users[0];
       demo.skip.clear(); demo.skip.add(watchUser.id);
     }
@@ -94,7 +94,41 @@
       else if (state === 'disconnected') { demo.skip.clear(); watchUser = null; setChip('השעון התנתק', 'error'); $('#btnWatch').textContent = '⌚ חיבור שעון'; }
     }
   );
+  // Preferred path: the local bridge (tools/hr_bridge.py) reads the watch through Windows.
+  let bridgeTimer = null;
+  function stopBridge() {
+    clearInterval(bridgeTimer); bridgeTimer = null;
+    demo.skip.clear(); watchUser = null; $('#btnWatch').textContent = '⌚ חיבור שעון';
+  }
+  async function pollBridge() {
+    try {
+      const r = await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store' });
+      const d = await r.json();
+      if (d.connected && d.bpm > 0 && d.age != null && d.age < 5 && watchUser) {
+        session.push(watchUser.id, d.bpm, 1);
+        setChip('⌚ ' + d.name + ' → ' + watchUser.name + ' · ' + d.bpm + ' ♥');
+        ui.update();
+      } else {
+        setChip('⌚ ' + (d.name || 'השעון') + ': ממתין לדופק…', 'wait');
+      }
+    } catch (e) { setChip('הגשר נעצר. הפעל/י שוב את tools/hr_bridge.py', 'error'); }
+  }
+  async function tryBridge() {
+    try {
+      const c = new AbortController(); setTimeout(() => c.abort(), 1500);
+      const r = await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store', signal: c.signal });
+      if (!r.ok) return false;
+    } catch (e) { return false; }
+    watchUser = session.users[0];
+    demo.skip.clear(); demo.skip.add(watchUser.id);
+    $('#btnWatch').textContent = '⌚ ניתוק שעון';
+    pollBridge(); bridgeTimer = setInterval(pollBridge, 1000);
+    return true;
+  }
+
   $('#btnWatch').addEventListener('click', async () => {
+    if (bridgeTimer) { stopBridge(); setChip('', ''); return; }
+    if (await tryBridge()) return;
     if (ble.connected) { ble.disconnect(); return; }
     if (!HR.BleSource.supported) { setChip('Bluetooth זמין רק ב-Chrome או Edge, בכתובת localhost או https', 'error'); return; }
     watchUser = session.users[0];                 // the first participant wears the watch
