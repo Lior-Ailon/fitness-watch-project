@@ -17,7 +17,7 @@
   /** Pick columns x rows so tiles come out close to a 1.3:1 landscape card. */
   function gridShape(n, areaAspect) {
     let best = null;
-    for (let cols = 2; cols <= 7; cols++) {
+    for (let cols = n < 3 ? 1 : 2; cols <= 7; cols++) {
       const rows = Math.ceil(n / cols);
       if (rows * cols < n) continue;
       const tileAspect = areaAspect * rows / cols;
@@ -63,8 +63,13 @@
       const grid = $('#grid');
       grid.innerHTML = '';
       this.tiles.clear();
+      // Nobody yet (real board before the first watch): show the invitation instead of an empty grid.
+      const none = users.length === 0;
+      $('#stage').classList.toggle('is-empty', none);
+      $('#empty').hidden = !none;
+      $('#boardEmpty').hidden = !none;
       const box = grid.getBoundingClientRect();
-      const { cols, rows } = gridShape(users.length, box.width && box.height ? box.width / box.height : 1.65);
+      const { cols, rows } = gridShape(Math.max(1, users.length), box.width && box.height ? box.width / box.height : 1.65);
       grid.style.setProperty('--cols', cols);
       grid.style.setProperty('--rows', rows);
 
@@ -75,7 +80,7 @@
         el.setAttribute('role', 'button');
         el.innerHTML = `
           <div class="content">
-            <div class="t-name"><span class="name"></span><span class="crown-slot"></span></div>
+            <div class="t-name"><span class="name"></span><span class="crown-slot"></span><i class="w-dot" aria-hidden="true"></i></div>
             <div class="t-body">
               <div class="t-data">
                 <div class="bpm num"><b>--</b><small>BPM</small></div>
@@ -150,15 +155,20 @@
         if (!stale) { counts[z.id]++; hrSum += u.hr; hrN++; }
 
         const t = this.tiles.get(u.id);
+        // 'demo' (simulated), 'on' (watch connected), 'lost' (reconnecting), 'none' (no watch yet)
+        const ws = this.watchState ? this.watchState(u.id) : 'demo';
+        const quiet = ws === 'none' ? 'אין שעון' : ws === 'lost' ? 'מתחבר מחדש' : 'אין אות';
         t.el.style.setProperty('--zc', z.color);
         t.el.classList.toggle('off', stale);
-        t.el.title = stale ? 'אין אות' : z.name;
+        t.el.dataset.watch = ws;
+        t.el.title = stale ? quiet : z.name;
         t.bpm.textContent = stale ? '--' : u.hr;
         t.cal.textContent = fmtInt(u.kcal);
         t.pct.textContent = stale ? '--' : Math.round(u.pct) + '%';
         const frac = stale ? 0 : Math.max(0, Math.min(1, u.pct / 100));
+        t.el.style.setProperty('--lvl', (frac * 100).toFixed(1));
         t.prog.style.strokeDashoffset = (RING_LEN * (1 - frac)).toFixed(1);
-        t.badge.textContent = stale ? 'אין אות' : (z.tag || 'מנוחה');
+        t.badge.textContent = stale ? quiet : (z.tag || 'מנוחה');
         t.crown.innerHTML = i < 3 ? crown(MEDAL[i]) : '';
 
         const r = this.rows.get(u.id);
@@ -189,6 +199,9 @@
       if (!u) return;
       $('#dName').textContent = u.name;
       $('#dSub').textContent = `גיל ${u.ageAtStart} בתחילת האימון, דופק מקסימלי ${u.maxHr}`;
+      const ws = this.watchState ? this.watchState(u.id) : 'demo';
+      $('#dWatch').textContent = ws === 'none' ? 'חיבור שעון' : 'ניתוק השעון';
+      $('#dWatch').dataset.act = ws === 'none' ? 'connect' : 'disconnect';
       const stats = [
         ['דופק עכשיו', u.hr || '--', u.zone.color],
         ['אחוז מהמקסימום', Math.round(u.pct) + '%', u.zone.color],
@@ -224,7 +237,7 @@
 
       $('#sumMeta').innerHTML =
         `<span>משך האימון <b class="num">${fmtTime(s.elapsed)}</b></span>` +
-        `<span><b class="num">${ranking.length}</b> מתאמנות</span>` +
+        `<span><b class="num">${ranking.length}</b> מתאמנים</span>` +
         `<span><b class="num">${fmtInt(s.totalKcal)}</b> קלוריות</span>`;
 
       // Podium: 2nd, 1st, 3rd (as in the design)
@@ -301,11 +314,71 @@
       });
     }
 
+    /* ---------- people & watches (settings dialog, real board) ---------- */
+    /** @param {Array} people  @param {(id:string)=>{name:string,state:string}|null} watchOf */
+    fillPeople(people, watchOf) {
+      const tbody = $('#peopleTable tbody');
+      tbody.innerHTML = '';
+      $('#peopleEmpty').hidden = people.length > 0;
+      for (const p of people) {
+        const w = watchOf(p.id);
+        const tr = document.createElement('tr');
+        tr.dataset.id = p.id;
+        tr.innerHTML = `
+          <td><input type="text" class="r-name-in" dir="auto" maxlength="24" aria-label="שם"></td>
+          <td><input type="number" class="r-age" min="10" max="95" inputmode="numeric" aria-label="גיל"></td>
+          <td><input type="number" class="r-weight" min="30" max="200" inputmode="numeric" aria-label="משקל"></td>
+          <td><select class="r-sex" aria-label="מין"><option value="f">נקבה</option><option value="m">זכר</option></select></td>
+          <td class="r-max num"></td>
+          <td class="r-watch"><span class="w-state"></span><button type="button" class="mini-btn w-btn"></button></td>
+          <td><button type="button" class="mini-btn danger w-del" aria-label="הסרת המתאמן" title="הסרת המתאמן">✕</button></td>`;
+        tr.querySelector('.r-name-in').value = p.name;
+        tr.querySelector('.r-age').value = p.age;
+        tr.querySelector('.r-weight').value = p.weight;
+        tr.querySelector('.r-sex').value = p.sex === 'm' ? 'm' : 'f';
+        const st = tr.querySelector('.w-state'), btn = tr.querySelector('.w-btn');
+        st.textContent = w ? (w.state === 'lost' ? w.name + ' · מתחבר מחדש' : w.name) : (p.deviceName ? p.deviceName + ' · לא מחובר' : 'אין שעון');
+        st.dataset.state = w ? w.state : 'none';
+        btn.textContent = w ? 'ניתוק' : 'חיבור';
+        btn.addEventListener('click', () => this.onPeople && this.onPeople(w ? 'unwatch' : 'watch', p.id));
+        tr.querySelector('.w-del').addEventListener('click', () => this.onPeople && this.onPeople('remove', p.id));
+        const upd = () => {
+          const age = parseInt(tr.querySelector('.r-age').value, 10);
+          tr.querySelector('.r-max').textContent = age > 0 ? HR.maxHrForAge(age) : '--';
+        };
+        tr.querySelector('.r-age').addEventListener('input', upd);
+        upd();
+        tbody.appendChild(tr);
+      }
+    }
+
+    readPeople(base) {
+      const clamp = (v, lo, hi, d) => { v = parseInt(v, 10); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+      return [...document.querySelectorAll('#peopleTable tbody tr')].map(tr => {
+        const p = base.find(x => x.id === tr.dataset.id) || {};
+        return {
+          ...p,
+          id: tr.dataset.id,
+          name: tr.querySelector('.r-name-in').value.trim() || p.name || 'מתאמן',
+          age: clamp(tr.querySelector('.r-age').value, 10, 95, p.age || 30),
+          weight: clamp(tr.querySelector('.r-weight').value, 30, 200, p.weight || 70),
+          sex: tr.querySelector('.r-sex').value === 'm' ? 'm' : 'f'
+        };
+      });
+    }
+
     /* ---------- dialogs & controls ---------- */
     bindDialogs() {
       const detail = $('#detail');
       detail.addEventListener('close', () => { this.openId = null; });
       detail.addEventListener('click', e => { if (e.target === detail) detail.close(); });
+      $('#dWatch').addEventListener('click', e => {
+        const id = this.openId, act = e.currentTarget.dataset.act;
+        detail.close();
+        if (this.onPeople && id) this.onPeople(act === 'connect' ? 'watch' : 'unwatch', id);
+      });
+      const help = $('#help');
+      help.addEventListener('click', e => { if (e.target === help) help.close(); });
 
       const settings = $('#settings');
       settings.addEventListener('click', e => { if (e.target === settings) settings.close(); });

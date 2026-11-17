@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>לוח דופק חי</title>
+  <meta name="robots" content="noindex">
+  <title>Live Workout · לוח דופק חי</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='11' fill='%23080b1a'/%3E%3Cpath d='M5 26h10l4-11 6 21 5-15 3 5h10' fill='none' stroke='%23ff3d5a' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Heebo:wght@400;600;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-view="live" data-layout="ref">
+<body data-view="live" data-layout="ref" data-mode="live">
 
   <!-- ================= LIVE BOARD ================= -->
   <div id="live" class="view">
@@ -19,49 +21,71 @@
         <div><b id="elapsed" class="num">00:00</b><span>מתחילת האימון</span></div>
       </div>
       <div class="kpi">
-        <svg class="ico flame" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4c1 8 10 12 10 24a10 10 0 0 1-20 0c0-5 3-8 5-11 1 4 3 5 4 5 1-6-1-11 1-18z" fill="currentColor"/></svg>
+        <svg class="ico" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4c1 8 10 12 10 24a10 10 0 0 1-20 0c0-5 3-8 5-11 1 4 3 5 4 5 1-6-1-11 1-18z" fill="currentColor"/></svg>
         <div><b id="kcalTotal" class="num">0</b><span>קלוריות (סה"כ)</span></div>
       </div>
 
       <div class="title">
-        <svg class="ecg l" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
-        <h1>LIVE WORKOUT</h1>
-        <svg class="ecg r" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
+        <svg class="ecg l" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="100" d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
+        <h1><i class="live-dot" aria-hidden="true"></i>LIVE WORKOUT</h1>
+        <span id="modeChip" class="mode-chip" hidden>הדגמה</span>
+        <svg class="ecg r" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="100" d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
       </div>
 
       <div class="kpi">
-        <svg class="ico heart" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 40S6 29 6 17a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 12-18 23-18 23z"/><path d="M12 24h7l3-6 4 11 3-5h7"/></svg>
+        <svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 40S6 29 6 17a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 12-18 23-18 23z"/><path d="M12 24h7l3-6 4 11 3-5h7"/></svg>
         <div><b id="avgHr" class="num">--</b><span>דופק ממוצע</span></div>
       </div>
       <div class="kpi">
-        <svg class="ico clock" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="24" cy="24" r="18"/><path d="M24 13v11l7 5"/></svg>
+        <svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="24" cy="24" r="18"/><path d="M24 13v11l7 5"/></svg>
         <div><b id="nowClock" class="num">--:--</b><span>כעת</span></div>
       </div>
     </header>
 
-    <main class="stage">
-      <section id="grid" class="grid" aria-label="מתאמנות"></section>
+    <main class="stage" id="stage">
+      <section id="empty" class="empty" hidden>
+        <div class="empty-in">
+          <svg class="empty-art" viewBox="0 0 240 80" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="100" d="M0 44h68l12-28 16 60 14-48 10 16h120"/></svg>
+          <h2>מחברים שעון ומתחילים</h2>
+          <p>כל שעון או רצועה שמשדרים דופק ב-Bluetooth מקבלים כאן אריח משלהם, עם הדופק, אזור המאמץ והקלוריות.</p>
+          <div class="empty-actions">
+            <button type="button" id="btnWatch2" class="pill-btn solid">חיבור שעון</button>
+            <button type="button" id="btnDemo2" class="pill-btn">לראות הדגמה</button>
+          </div>
+          <button type="button" id="btnHelp2" class="link-btn">איך מחברים שעון?</button>
+        </div>
+      </section>
+
+      <section id="grid" class="grid" aria-label="מתאמנים"></section>
 
       <aside class="board" aria-label="דירוג בזמן אמת">
         <h2>
-          <svg viewBox="0 0 48 48" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8h20v10a10 10 0 0 1-20 0V8zM14 12H6c0 7 3 11 8 12M34 12h8c0 7-3 11-8 12M24 28v8M16 42h16M19 36h10"/></svg>
+          <svg viewBox="0 0 48 48" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8h20v10a10 10 0 0 1-20 0V8zM14 12H6c0 7 3 11 8 12M34 12h8c0 7-3 11-8 12M24 28v8M16 42h16M19 36h10"/></svg>
           דירוג בזמן אמת
         </h2>
         <ol id="board"></ol>
+        <p id="boardEmpty" class="board-empty" hidden>הדירוג יופיע כשיתחבר השעון הראשון</p>
       </aside>
     </main>
 
     <footer class="foot">
       <ul class="legend" id="legend" aria-label="אזורי דופק"></ul>
       <div class="tools">
-        <span id="watchChip" class="watch-chip" hidden aria-live="polite"></span>
-        <button type="button" id="btnWatch" class="pill-btn">⌚ חיבור שעון</button>
+        <span id="watchChip" class="watch-chip" hidden aria-live="polite"><span id="chipText"></span><button type="button" id="chipAct" hidden></button></span>
+        <button type="button" id="btnWatch" class="pill-btn solid" data-only="live">חיבור שעון</button>
+        <button type="button" id="btnDemo" class="pill-btn">הדגמה</button>
         <button type="button" id="btnEnd" class="pill-btn">סיום אימון</button>
+        <button type="button" id="btnHelp" class="icon-btn" aria-label="איך מחברים שעון" title="איך מחברים שעון">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .8c0 1.8-2.5 2.2-2.5 4M12 17.2v.1"/></svg>
+        </button>
         <button type="button" id="btnSettings" class="icon-btn" aria-label="הגדרות (S)" title="הגדרות (S)">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
         <button type="button" id="btnFull" class="icon-btn" aria-label="מסך מלא (F)" title="מסך מלא (F)">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button type="button" id="btnLogout" class="icon-btn" aria-label="יציאה מהחשבון" title="יציאה מהחשבון" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></svg>
         </button>
       </div>
     </footer>
@@ -79,12 +103,12 @@
       </div>
     </header>
     <div class="s-grid">
-      <section id="podium" class="podium" aria-label="שלוש המובילות"></section>
+      <section id="podium" class="podium" aria-label="שלושת המובילים"></section>
       <section class="s-table-wrap" aria-label="טבלת סיכום">
         <table class="s-table" id="sumTable">
           <thead>
             <tr>
-              <th class="c-name" colspan="2">מתאמנת</th>
+              <th class="c-name" colspan="2">מתאמן</th>
               <th class="z5">Z5</th><th class="z4">Z4</th><th class="z3">Z3</th><th class="z2">Z2</th><th class="z1">Z1</th>
               <th>דופק ממוצע</th><th>קלוריות</th>
             </tr>
@@ -102,9 +126,12 @@
         <h2 id="dName"></h2>
         <p id="dSub" class="d-sub"></p>
       </div>
-      <button class="icon-btn" value="close" aria-label="סגירה">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+      <div class="d-head-actions">
+        <button type="button" id="dWatch" class="pill-btn" data-only="live"></button>
+        <button class="icon-btn" value="close" aria-label="סגירה">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
     </form>
     <div class="d-stats" id="dStats"></div>
     <div class="d-chart">
@@ -116,10 +143,10 @@
 
   <dialog id="settings" aria-labelledby="sTitle">
     <form method="dialog" class="s-form" id="settingsForm">
-      <h2 id="sTitle">הגדרות ומתאמנות</h2>
+      <h2 id="sTitle">הגדרות</h2>
 
       <div class="s-row">
-        <label class="field">
+        <label class="field" data-only="demo">
           <span>מהירות הדגמה</span>
           <select id="speedIn">
             <option value="1">רגילה</option>
@@ -130,28 +157,87 @@
         <label class="field">
           <span>מיקום הדירוג</span>
           <select id="layoutIn">
-            <option value="ref">בצד ימין (כמו בעיצוב)</option>
-            <option value="rtl">בצד שמאל (היפוך לעברית)</option>
+            <option value="ref">בצד ימין</option>
+            <option value="rtl">בצד שמאל</option>
           </select>
         </label>
       </div>
 
-      <div>
-        <h3>מתאמנות באימון הזה</h3>
-        <p class="hint">הדופק המקסימלי ואזורי הדופק נקבעים לפי הגיל שמוזן כאן, ברגע שלוחצים "התחל אימון". כך ההשוואה בין כולן הוגנת.</p>
+      <div data-only="demo">
+        <h3>מתאמנים בהדגמה</h3>
+        <p class="hint">הדופק המקסימלי ואזורי הדופק נקבעים לפי הגיל שמוזן כאן, ברגע שלוחצים "התחל אימון".</p>
         <div class="roster-wrap">
           <table class="roster" id="rosterTable">
-            <thead><tr><th>משתתפת</th><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>דופק מקס'</th></tr></thead>
+            <thead><tr><th>משתתף</th><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>דופק מקס'</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
 
+      <div data-only="live">
+        <h3>מתאמנים ושעונים</h3>
+        <p class="hint">אזורי הדופק נקבעים לפי הגיל, והקלוריות לפי המשקל והמין. שעון שחובר פעם אחת משויך שוב לאותו מתאמן בחיבור הבא.</p>
+        <div class="roster-wrap">
+          <table class="roster" id="peopleTable">
+            <thead><tr><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>מין</th><th>דופק מקס'</th><th>שעון</th><th><span class="sr">הסרה</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p id="peopleEmpty" class="roster-empty" hidden>עדיין אין מתאמנים. מוסיפים מתאמן, או מחברים שעון והמתאמן נוסף מעצמו.</p>
+        </div>
+        <button type="button" id="btnAddPerson" class="ghost add-btn">הוספת מתאמן</button>
+      </div>
+
       <div class="s-btns">
-        <button class="primary" value="start" id="btnStart">התחל אימון</button>
+        <button class="primary" value="start" id="btnStart" data-only="demo">התחל אימון</button>
+        <button class="primary" value="save" id="btnSave" data-only="live">שמירה</button>
         <button class="ghost" value="close">סגירה</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="assign" class="narrow" aria-labelledby="asTitle">
+    <form method="dialog" class="s-form">
+      <h2 id="asTitle">למי שייך <bdi id="asName"></bdi>?</h2>
+      <label class="field" id="asWhoWrap">
+        <span>מתאמן</span>
+        <select id="asWho"></select>
+      </label>
+      <div class="as-new" id="asNew">
+        <label class="field as-wide"><span>שם</span><input type="text" id="asPName" dir="auto" maxlength="24" autocomplete="off"></label>
+        <label class="field"><span>גיל</span><input type="number" id="asAge" min="10" max="95" inputmode="numeric" value="30"></label>
+        <label class="field"><span>משקל (ק"ג)</span><input type="number" id="asWeight" min="30" max="200" inputmode="numeric" value="70"></label>
+        <label class="field"><span>מין</span><select id="asSex"><option value="f">נקבה</option><option value="m">זכר</option></select></label>
+      </div>
+      <div class="s-btns">
+        <button class="primary" value="ok">שמירה</button>
+        <button class="ghost" value="cancel">ביטול</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="help" aria-labelledby="hTitle">
+    <form method="dialog" class="d-head">
+      <h2 id="hTitle">איך מחברים שעון</h2>
+      <button class="icon-btn" value="close" aria-label="סגירה">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </form>
+    <p id="helpUnsupported" class="help-warn" hidden>הדפדפן הזה לא תומך בחיבור Bluetooth. פותחים את האתר ב-Chrome או ב-Edge, במחשב או בטלפון אנדרואיד.</p>
+    <ol class="help-steps">
+      <li><b>מפעילים בשעון שידור דופק.</b> השעון צריך לשדר את הדופק ב-Bluetooth כמו רצועת דופק רגילה.</li>
+      <li><b>לוחצים כאן על "חיבור שעון"</b> ובוחרים את השעון מהרשימה שהדפדפן מציג.</li>
+      <li><b>משייכים את השעון למתאמן.</b> בפעם הבאה אותו שעון ישויך אליו מעצמו.</li>
+    </ol>
+    <h3>איפה מפעילים שידור דופק</h3>
+    <dl class="help-brands">
+      <div><dt>Garmin</dt><dd>בתפריט השעון: חיישנים ואביזרים, דופק בפרק כף היד, "שידור דופק" (Broadcast Heart Rate).</dd></div>
+      <div><dt>Polar</dt><dd>בהגדרות השעון או בתחילת אימון: "שיתוף דופק עם מכשירים אחרים".</dd></div>
+      <div><dt>Coros</dt><dd>בהגדרות השעון: שידור דופק (HR Broadcast).</dd></div>
+      <div><dt>Suunto, Amazfit, Xiaomi, Huawei</dt><dd>בחלק מהדגמים יש "שידור דופק" בהגדרות השעון או באפליקציה. לא בכל דגם.</dd></div>
+      <div><dt>רצועות דופק</dt><dd>רצועות חזה וזרוע (Polar, Wahoo, Garmin ועוד) משדרות כל עוד הן על הגוף, בלי הגדרה.</dd></div>
+      <div><dt>Apple Watch, Samsung, Fitbit</dt><dd>לא משדרים דופק בתקן הזה בעצמם. צריך אפליקציית עזר שמשדרת את הדופק, או רצועת דופק.</dd></div>
+    </dl>
+    <p class="hint">השעון לא ברשימה? מוודאים שהשידור פועל ושהשעון לא מחובר כרגע למכשיר אחר, ואז לוחצים על "הצגת כל המכשירים" שמופיע אחרי שסוגרים את הרשימה.</p>
   </dialog>
 
   <script src="js/core.js"></script>

@@ -47,7 +47,11 @@ window.HR = window.HR || {};
     setUsers(list) {
       this.elapsed = 0;
       this.ended = false;
-      this.users = list.map(u => ({
+      this.users = list.map(u => this._fresh(u));
+    }
+
+    _fresh(u) {
+      return {
         sex: 'f', weight: 65,
         ...u,
         ageAtStart: u.age,
@@ -57,7 +61,21 @@ window.HR = window.HR || {};
         zoneSecs: [0, 0, 0, 0, 0, 0],
         peak: 0, sum: 0, n: 0,
         lastSeen: 0, live: false
-      }));
+      };
+    }
+
+    /** Someone joins mid-workout (a watch was just connected): the others keep their numbers. */
+    addUser(u) { if (!this.byId(u.id)) this.users.push(this._fresh(u)); }
+
+    removeUser(id) { this.users = this.users.filter(u => u.id !== id); }
+
+    /** Profile edit during a workout: the name changes at once, and max HR follows the new age. */
+    updateProfile(id, p) {
+      const u = this.byId(id);
+      if (!u) return;
+      u.name = p.name; u.age = p.age; u.weight = p.weight; u.sex = p.sex;
+      u.ageAtStart = p.age;
+      u.maxHr = HR.maxHrForAge(p.age);
     }
 
     byId(id) { return this.users.find(u => u.id === id); }
