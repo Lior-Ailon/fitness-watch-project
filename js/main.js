@@ -68,10 +68,65 @@
   /* ---------- workouts ---------- */
   let liveTimer = null, liveRunning = false;
 
+  /* ---------- saving workouts to the server ----------
+     A workout is saved under one key, so saving again only updates it: once a minute while it runs,
+     when it ends, and before the board is reset or switched to the demo. If the server cannot be
+     reached the workout stays marked unsaved and the next save tries again. */
+  let sessionKey = null, sessionStart = 0, unsaved = false, saveChain = Promise.resolve(), warnedSave = false;
+  const newKey = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  /** One value per 5 seconds (average), enough to redraw the workout later. */
+  function thin(h, step = 5) {
+    const out = [];
+    for (let i = 0; i < h.length; i += step) {
+      const part = h.slice(i, i + step);
+      out.push(Math.round(part.reduce((a, b) => a + b, 0) / part.length));
+    }
+    return out;
+  }
+
+  function buildPayload() {
+    const results = session.users.filter(u => u.n > 0).map(u => ({
+      id: u.id, name: u.name, age: u.ageAtStart, weight: u.weight, sex: u.sex, maxHr: u.maxHr,
+      avgHr: session.avgOf(u), peakHr: u.peak, kcal: u.kcal, points: u.points,
+      zoneSecs: u.zoneSecs.map(v => Math.round(v * 10) / 10), series: thin(u.history)
+    }));
+    return results.length ? { id: sessionKey, startedAt: sessionStart, durationS: Math.round(session.elapsed), results } : null;
+  }
+
+  /** Resolves to 'saved', 'failed' or 'none' (nothing to save). */
+  function saveSession() {
+    if (mode !== 'live' || !sessionKey || !unsaved) return Promise.resolve('none');
+    const payload = buildPayload();
+    if (!payload) return Promise.resolve('none');
+    unsaved = false;                                   // a heartbeat that arrives meanwhile marks it again
+    saveChain = saveChain.then(async () => {
+      try { await HR.Api.saveSession(payload); warnedSave = false; return 'saved'; }
+      catch (e) { unsaved = true; return 'failed'; }
+    });
+    return saveChain;
+  }
+
+  function setSaveNote(text, state) {
+    const n = $('#sumSave');
+    n.textContent = text || '';
+    n.dataset.state = state || '';
+  }
+
+  setInterval(async () => {
+    if (mode !== 'live' || session.ended) return;
+    if (await saveSession() === 'failed' && !warnedSave) {
+      warnedSave = true;
+      flash('האימון לא נשמר בשרת. ננסה שוב בעוד דקה', 'error', 10000);
+    }
+  }, 60000);
+
   /** Real board: the clock starts with the first heartbeat that arrives. */
   function startLive() {
     demo.stop();
     clearInterval(liveTimer);
+    saveSession();                                     // keep the workout that is about to be replaced
+    sessionKey = null; unsaved = false;
     session.setUsers(people);
     liveRunning = false;
     ui.build();
@@ -102,9 +157,16 @@
     demo.stop();
     session.ended = true;
     ui.showSummary();
+    setSaveNote(mode === 'live' && unsaved ? 'שומר בהיסטוריה…' : '', '');
+    saveSession().then(r => {
+      if (r === 'saved') setSaveNote('האימון נשמר בהיסטוריה', 'ok');
+      else if (r === 'failed') setSaveNote('האימון עוד לא נשמר: אין חיבור לשרת. ננסה שוב מעצמנו', 'error');
+      else if (mode === 'live' && sessionKey) setSaveNote('האימון נשמר בהיסטוריה', 'ok');
+    });
   }
 
   function setMode(m) {
+    if (mode === 'live') saveSession();                // leaving the real board: keep what was measured
     mode = m === 'demo' ? 'demo' : 'live';
     document.body.dataset.mode = mode;
     $('#modeChip').hidden = mode !== 'demo';
@@ -128,7 +190,8 @@
     const w = watches.get(devId);
     if (!w || mode !== 'live' || session.ended) return;
     w.state = 'on';
-    liveRunning = true;
+    if (!liveRunning) { liveRunning = true; if (!sessionKey) { sessionKey = newKey(); sessionStart = Date.now(); } }
+    unsaved = true;
     session.push(w.userId, bpm, dt);
     ui.update();
   }
@@ -324,7 +387,7 @@
   $('#btnEnd').addEventListener('click', () => {
     if (confirm('לסיים את האימון ולהציג סיכום?')) endWorkout();
   });
-  $('#btnBack').addEventListener('click', () => { session.ended = false; ui.showLive(); if (mode === 'demo') demo.start(); });
+  $('#btnBack').addEventListener('click', () => { session.ended = false; setSaveNote(''); ui.showLive(); if (mode === 'demo') demo.start(); });
   $('#btnNew').addEventListener('click', () => {
     if (mode === 'demo') { fillSettings(); settings.showModal(); }
     else startLive();                                     // same people and watches, numbers from zero

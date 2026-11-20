@@ -377,6 +377,11 @@
         detail.close();
         if (this.onPeople && id) this.onPeople(act === 'connect' ? 'watch' : 'unwatch', id);
       });
+      $('#dHistory').addEventListener('click', () => {
+        const id = this.openId;
+        detail.close();
+        if (HR.History && id) HR.History.open(id);
+      });
       const help = $('#help');
       help.addEventListener('click', e => { if (e.target === help) help.close(); });
 
