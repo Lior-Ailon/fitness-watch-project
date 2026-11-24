@@ -127,7 +127,7 @@
     clearInterval(liveTimer);
     saveSession();                                     // keep the workout that is about to be replaced
     sessionKey = null; unsaved = false;
-    session.setUsers(people);
+    session.setUsers(people.filter(p => watchOf(p.id)));   // the board shows whoever is connected now
     liveRunning = false;
     ui.build();
     ui.showLive();
@@ -179,8 +179,14 @@
   /** Bring the running session in line with the people list without losing anyone's numbers. */
   function syncLive() {
     if (mode !== 'live') return;
-    for (const p of people) session.byId(p.id) ? session.updateProfile(p.id, p) : session.addUser(p);
-    for (const u of [...session.users]) if (!people.some(p => p.id === u.id)) session.removeUser(u.id);
+    // On the board: trainees with a connected watch, and anyone who already has numbers this workout.
+    for (const p of people) {
+      if (session.byId(p.id)) session.updateProfile(p.id, p);
+      else if (watchOf(p.id)) session.addUser(p);
+    }
+    for (const u of [...session.users]) {
+      if (!people.some(p => p.id === u.id) || (!watchOf(u.id) && !u.n)) session.removeUser(u.id);
+    }
     ui.build();
     ui.update();
   }
@@ -274,7 +280,7 @@
         else if (state === 'disconnected' && devId && watches.get(devId) && watches.get(devId).src === src) {
           watches.delete(devId);
           if (!info || !info.manual) flash(((info && info.name) || 'השעון') + ' התנתק. לוחצים על "חיבור שעון" כדי לחבר שוב', 'error', 12000);
-          ui.update(); refillPeople();
+          syncLive(); refillPeople();
         }
       }
     );
@@ -291,7 +297,10 @@
       }
       return;
     }
-    const id = src.id, name = src.name;
+    const id = src.id;
+    let name = src.name;
+    // Two devices with the same name (two iPhones): add the short tag so each can be told apart.
+    if ([...watches.values()].some(w => w.id !== id && w.name === name)) name += ' · ' + HR.BleSource.shortId(id);
     const old = watches.get(id);
     if (old && old.src !== src) { old.src.manual = true; old.src._cleanup(); }   // same watch picked twice
     devId = id;
@@ -345,7 +354,7 @@
   ui.onPeople = async (act, id) => {
     if ($('#settings').open) applyPeopleEdits();          // keep what was typed before the table is rebuilt
     if (act === 'watch') await connectWatch({ forId: id });
-    else if (act === 'unwatch') { const w = watchOf(id); if (w) { dropWatch(w.id); flash(w.name + ' נותק', '', 4000); } }
+    else if (act === 'unwatch') { const w = watchOf(id); if (w) { dropWatch(w.id); flash(w.name + ' נותק', '', 4000); syncLive(); } }
     else if (act === 'remove') {
       const p = people.find(x => x.id === id);
       if (!p || !confirm('להסיר את ' + p.name + ' מהלוח?')) return;

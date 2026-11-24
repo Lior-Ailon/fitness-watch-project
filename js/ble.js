@@ -23,14 +23,20 @@
 
     get connected() { return !!(this.device && this.device.gatt && this.device.gatt.connected); }
     get id() { return this.device ? this.device.id : null; }
-    get name() { return (this.device && this.device.name) || 'שעון'; }
+    /** Short tag from the device id, to tell apart devices that have no name or share one (two iPhones). */
+    static shortId(id) { return String(id || '').replace(/[^A-Za-z0-9]/g, '').slice(-4).toLowerCase(); }
+    /** The device's own name, else the name it reports over Bluetooth, else "device <tag>". */
+    get name() {
+      if (!this.device) return 'שעון';
+      return this.device.name || this.gattName || ('מכשיר ' + BleSource.shortId(this.device.id));
+    }
 
     /** @param {{all?:boolean}} opt  all=true lists every nearby Bluetooth device, for watches
      *  that broadcast heart rate without advertising the service. */
     async connect(opt = {}) {
       if (!BleSource.supported) throw new Error('unsupported');
       this.onState('choosing');
-      const optionalServices = ['heart_rate', 'battery_service', 'device_information'];
+      const optionalServices = ['heart_rate', 'battery_service', 'device_information', 'generic_access'];
       const device = await navigator.bluetooth.requestDevice(
         opt.all ? { acceptAllDevices: true, optionalServices }
                 : { filters: [{ services: ['heart_rate'] }], optionalServices }
@@ -62,6 +68,21 @@
       this.char.addEventListener('characteristicvaluechanged', this._handler);
       await this.char.startNotifications();
       this.last = performance.now();
+      if (!this.device.name && !this.gattName) await this._readName(server);
+    }
+
+    /** Phones that broadcast heart rate often hide their name in the advertisement but still
+        answer the standard "Device Name" question once connected. Never blocks for long. */
+    async _readName(server) {
+      try {
+        const read = (async () => {
+          const ga = await server.getPrimaryService('generic_access');
+          const ch = await ga.getCharacteristic('gap.device_name');
+          return new TextDecoder().decode(await ch.readValue()).replace(/\0/g, '').trim();
+        })();
+        const name = await Promise.race([read, sleep(2500).then(() => '')]);
+        if (name) this.gattName = name.slice(0, 40);
+      } catch (e) { /* no name to read: the short tag stands in */ }
     }
 
     /** The link dropped by itself (out of range, watch asleep): try to get it back quietly. */
