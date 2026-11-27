@@ -25,6 +25,14 @@
   // 'studio'   = the studio owns numbered bracelets, and who wears which one is chosen for each workout.
   let equip = saved.equip === 'studio' ? 'studio' : 'personal';
   /** Studio bracelets by Bluetooth device id: { id, label, deviceName }. The label sticks to the id. */
+  // Rooms of the studio. Every workout belongs to one room, chosen before it starts.
+  const DEFAULT_ROOMS = [['aerobic', 'אירובי'], ['pilates', 'פילאטיס'], ['spinning', 'ספינינג'], ['crossfit', 'קרוספיט']];
+  let rooms = Array.isArray(saved.rooms) && saved.rooms.length
+    ? saved.rooms.filter(r => r && r.id && r.name).map(r => ({ id: String(r.id), name: String(r.name) }))
+    : DEFAULT_ROOMS.map(([id, name]) => ({ id, name }));
+  if (!rooms.length) rooms = DEFAULT_ROOMS.map(([id, name]) => ({ id, name }));
+  let roomId = rooms.some(r => r.id === saved.roomId) ? saved.roomId : null;
+  const roomName = () => (rooms.find(r => r.id === roomId) || {}).name || '';
   let bracelets = Array.isArray(saved.bracelets) ? saved.bracelets.filter(b => b && b.id).map(b => ({ ...b })) : [];
   // 'live' = real watches only. 'demo' = the simulated class, kept as a showcase.
   const devDemo = params.get('n') || params.get('speed') || params.get('summary');
@@ -44,7 +52,73 @@
   const watchOf = userId => { for (const w of watches.values()) if (w.userId === userId) return w; return null; };
   ui.watchState = id => (mode === 'demo' ? 'demo' : (watchOf(id) || { state: 'none' }).state);
 
-  function persist() { store.save({ roster, people, speed, layout, mode, equip, bracelets }); }
+  function persist() { store.save({ roster, people, speed, layout, mode, equip, bracelets, rooms, roomId }); }
+
+  /* ---------- rooms: which room is this workout in ---------- */
+  ui.roomName = () => (mode === 'live' ? roomName() : '');
+  function renderRoomChip() {
+    const chip = $('#roomChip');
+    chip.dataset.empty = roomName() ? '' : '1';
+    $('#roomChipText').textContent = roomName() || 'בחירת חדר';
+    chip.querySelector('small').hidden = !roomName();
+  }
+  function pickRoom(id) {
+    roomId = id;
+    if (sessionKey) unsaved = true;                    // the saved copy gets the new room too
+    persist(); renderRoomChip();
+    $('#rooms').close('ok');
+  }
+  function openRooms() {
+    if (mode !== 'live') return;
+    const box = $('#rmList');
+    box.innerHTML = '';
+    for (const r of rooms) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'rm-btn'; b.textContent = r.name;
+      b.setAttribute('aria-pressed', String(r.id === roomId));
+      b.addEventListener('click', () => pickRoom(r.id));
+      box.appendChild(b);
+    }
+    if (!$('#rooms').open) $('#rooms').showModal();
+  }
+  $('#roomChip').addEventListener('click', openRooms);
+  $('#rooms').addEventListener('click', e => { if (e.target === $('#rooms')) $('#rooms').close(); });
+
+  function fillRooms() {
+    const box = $('#roomsEditor');
+    box.innerHTML = '';
+    for (const r of rooms) {
+      const row = document.createElement('div');
+      row.className = 'rm-edit'; row.dataset.id = r.id;
+      row.innerHTML = '<input type="text" maxlength="24" dir="auto" autocomplete="off" aria-label="שם החדר"><button type="button" class="mini-btn danger" aria-label="הסרת החדר" title="הסרת החדר">✕</button>';
+      row.querySelector('input').value = r.name;
+      row.querySelector('button').addEventListener('click', () => {
+        captureRooms();
+        if (rooms.length <= 1) { flash('חייב להישאר לפחות חדר אחד', 'error', 4000); return; }
+        rooms = rooms.filter(x => x.id !== r.id);
+        if (roomId === r.id) roomId = null;
+        persist(); fillRooms(); renderRoomChip();
+      });
+      box.appendChild(row);
+    }
+  }
+  /** Take the names as typed in the settings table. */
+  function captureRooms() {
+    rooms = rooms.map(r => {
+      const inp = document.querySelector('#roomsEditor .rm-edit[data-id="' + r.id + '"] input');
+      return { id: r.id, name: (inp && inp.value.trim()) || r.name };
+    });
+    persist(); renderRoomChip();
+  }
+  $('#roomsEditor').addEventListener('input', captureRooms);   // names are kept as they are typed
+  $('#btnAddRoom').addEventListener('click', () => {
+    captureRooms();
+    rooms.push({ id: 'r' + Date.now().toString(36), name: 'חדר חדש' });
+    persist(); fillRooms();
+    const inputs = document.querySelectorAll('#roomsEditor input');
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
   function applyLayout() { document.body.dataset.layout = layout; }
 
   /* ---------- studio bracelets: a fixed number for each device ---------- */
@@ -61,7 +135,8 @@
     persist();
     return b;
   }
-  ui.tagOf = userId => { const w = (mode === 'live' && studio()) ? watchOf(userId) : null; return w ? labelOf(w.id) : ''; };
+  // On a tile: the bracelet number (studio) or the name of the watch (personal), to tell watches apart.
+  ui.tagOf = userId => { const w = mode === 'live' ? watchOf(userId) : null; return w ? (studio() ? labelOf(w.id) : w.name) : ''; };
 
   function applyEquip() {
     document.body.dataset.equip = equip;
@@ -124,7 +199,7 @@
       avgHr: session.avgOf(u), peakHr: u.peak, kcal: u.kcal, points: u.points,
       zoneSecs: u.zoneSecs.map(v => Math.round(v * 10) / 10), series: thin(u.history)
     }));
-    return results.length ? { id: sessionKey, startedAt: sessionStart, durationS: Math.round(session.elapsed), results } : null;
+    return results.length ? { id: sessionKey, startedAt: sessionStart, durationS: Math.round(session.elapsed), room: roomName(), results } : null;
   }
 
   /** Resolves to 'saved', 'failed' or 'none' (nothing to save). */
@@ -206,6 +281,7 @@
     startLive();
     refillPeople(); restChip();
     flash('אימון חדש. מחברים שעונים כדי להתחיל', '', 5000);
+    openRooms();                                       // the room is chosen before every workout
   }
   $('#btnNewLive').addEventListener('click', () => newWorkout(true));
 
@@ -285,11 +361,15 @@
   const newPerson = (over = {}) => ({ id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), name: 'מתאמן ' + (people.length + 1), age: 30, weight: 70, sex: 'f', ...over });
 
   /** Ask who wears the watch that was just connected. Resolves to a person, or null on cancel. */
-  function askAssign(deviceName, suggestedId) {
+  function askAssign(deviceName, suggestedId, before) {
     return new Promise(resolve => {
       const dlg = $('#assign'), who = $('#asWho');
       const free = people.filter(p => !watchOf(p.id) || p.id === suggestedId);
-      $('#asName').textContent = deviceName;
+      // before = the question comes first ("who is this for?"), then the browser's list of watches opens.
+      $('#asTitleA').hidden = !!before; $('#asTitleB').hidden = !before;
+      $('#asHint').hidden = !before;
+      $('#asOk').textContent = before ? 'המשך לבחירת השעון' : 'שמירה';
+      $('#asName').textContent = deviceName || '';
       who.innerHTML = '';
       for (const p of free) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; who.appendChild(o); }
       const o = document.createElement('option'); o.value = '__new'; o.textContent = 'מתאמן חדש (רושמים שם)'; who.appendChild(o);
@@ -298,7 +378,14 @@
       $('#asWhoWrap').hidden = free.length === 0;
       $('#asPName').value = '';
       $('#asPName').placeholder = 'מתאמן ' + (people.length + 1);
-      const showNew = () => { $('#asNew').hidden = who.value !== '__new'; };
+      const showNew = () => {
+        $('#asNew').hidden = who.value !== '__new';
+        if (!before) return;
+        const p = people.find(x => x.id === who.value);
+        $('#asHint').textContent = (p ? 'מחברים שעון של ' + p.name + '.' : 'מחברים שעון למתאמן חדש.') +
+          (p && p.deviceName ? ' בפעם הקודמת הוא היה מחובר לשעון "' + p.deviceName + '".' : '') +
+          ' בחלון הבא של הדפדפן בוחרים את השעון שלו מהרשימה.';
+      };
       who.onchange = showNew; showNew();
       dlg.returnValue = '';
       dlg.addEventListener('close', () => {
@@ -348,8 +435,27 @@
     return true;
   }
 
+  /** Connect a watch. In personal mode the trainee is chosen first and shown on the board with a
+      "choosing a watch" mark, so it is clear whose watch is being picked from the browser's list. */
   async function connectWatch(opt = {}) {
     if (mode !== 'live') return;
+    if (!opt.forId && !studio()) {
+      const free = people.filter(p => !watchOf(p.id));
+      const p = await askAssign('', free[0] && free[0].id, true);
+      if (!p) return;
+      opt = { ...opt, forId: p.id };
+    }
+    ui.pendingId = opt.forId || null;
+    if (opt.forId) {
+      const p = people.find(x => x.id === opt.forId);
+      if (p && !session.byId(p.id) && !session.ended) { session.addUser(p); ui.build(); }
+      ui.update();
+    }
+    try { await connectWatchInner(opt); }
+    finally { ui.pendingId = null; syncLive(); ui.update(); }
+  }
+
+  async function connectWatchInner(opt) {
     if (isLocal && !watches.has('bridge') && await bridgeAlive()) return connectBridge(opt.forId);
     if (!HR.BleSource.supported) { showHelp(); return; }
 
@@ -357,7 +463,10 @@
     const src = new HR.BleSource(
       (bpm, dt) => { if (devId) onBpm(devId, bpm, dt); },
       (state, info) => {
-        if (state === 'choosing') flash('בוחרים את השעון מהרשימה של הדפדפן', 'wait', 0);
+        if (state === 'choosing') {
+          const p = people.find(x => x.id === opt.forId);
+          flash(p ? 'בוחרים את השעון של ' + p.name + ' מהרשימה של הדפדפן' : 'בוחרים את השעון מהרשימה של הדפדפן', 'wait', 0);
+        }
         else if (state === 'connecting') flash('מתחבר אל ' + info.name, 'wait', 0);
         else if (state === 'reconnecting') { const w = watches.get(devId); if (w) w.state = 'lost'; flash(info.name + ' התנתק, מנסה לחבר מחדש', 'wait', 0); ui.update(); }
         else if (state === 'connected' && info.again) { const w = watches.get(devId); if (w) w.state = 'on'; flash(info.name + ' חזר להיות מחובר'); ui.update(); }
@@ -596,14 +705,14 @@
   $('#layoutIn').addEventListener('change', e => { layout = e.target.value; applyLayout(); persist(); setTimeout(() => ui.update(), 0); });
 
   const settings = $('#settings');
-  function fillSettings() { ui.fillRoster(roster); refillPeople(); }
+  function fillSettings() { ui.fillRoster(roster); refillPeople(); fillRooms(); }
   $('#btnSettings').addEventListener('click', fillSettings);
   settings.addEventListener('close', () => {
     const rv = settings.returnValue;
     settings.returnValue = '';
     if (rv !== 'start' && rv !== 'save') return;
     if (mode === 'demo') { roster = ui.readRoster(roster); persist(); startWorkout(); }
-    else applyPeopleEdits();
+    else { applyPeopleEdits(); captureRooms(); }
   });
   document.addEventListener('keydown', e => {
     if ((e.key === 's' || e.key === 'S' || e.key === 'ד') && !e.target.closest('input,select')) fillSettings();
@@ -633,7 +742,9 @@
   applyLayout();
   applyEquip();
   fillSettings();
+  renderRoomChip();
   setMode(mode);
+  if (mode === 'live' && !roomName()) openRooms();    // first run: ask which room before anything starts
 
   if (params.get('summary') === '1') endWorkout();   // handy for design checks
 })(window.HR);

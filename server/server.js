@@ -51,14 +51,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS results_by_athlete ON results(athlete_id);
 `);
 
+// Older databases have no room on a workout: add the column once, existing workouts get "".
+if (!db.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'room')) {
+  db.exec("ALTER TABLE sessions ADD COLUMN room TEXT NOT NULL DEFAULT ''");
+}
+
 const q = {
   upsertAthlete: db.prepare(`
     INSERT INTO athletes (id, name, age, weight, sex, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, age = excluded.age, weight = excluded.weight,
       sex = excluded.sex, updated_at = excluded.updated_at`),
   upsertSession: db.prepare(`
-    INSERT INTO sessions (id, started_at, duration_s, saved_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET duration_s = excluded.duration_s, saved_at = excluded.saved_at`),
+    INSERT INTO sessions (id, started_at, duration_s, saved_at, room) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET duration_s = excluded.duration_s, saved_at = excluded.saved_at, room = excluded.room`),
   clearResults: db.prepare('DELETE FROM results WHERE session_id = ?'),
   insertResult: db.prepare(`
     INSERT INTO results (session_id, athlete_id, name, age, weight, sex, max_hr, avg_hr, peak_hr, kcal, points,
@@ -71,7 +76,7 @@ const q = {
     GROUP BY a.id ORDER BY lastAt DESC, a.name`),
   athlete: db.prepare('SELECT id, name, age, weight, sex FROM athletes WHERE id = ?'),
   history: db.prepare(`
-    SELECT s.id AS sessionId, s.started_at AS startedAt, s.duration_s AS durationS,
+    SELECT s.id AS sessionId, s.started_at AS startedAt, s.duration_s AS durationS, s.room AS room,
            r.max_hr AS maxHr, r.avg_hr AS avgHr, r.peak_hr AS peakHr, r.kcal, r.points,
            r.z0, r.z1, r.z2, r.z3, r.z4, r.z5
     FROM results r JOIN sessions s ON s.id = r.session_id
@@ -93,7 +98,7 @@ function saveSession(body) {
   const durationS = Math.round(num(body.durationS, 0, 86400, 0));
   db.exec('BEGIN');
   try {
-    q.upsertSession.run(body.id, startedAt, durationS, now);
+    q.upsertSession.run(body.id, startedAt, durationS, now, str(body.room, 30));
     q.clearResults.run(body.id);
     for (const r of body.results) {
       if (!r || !ID.test(r.id || '')) throw httpError(400, 'bad athlete id');
@@ -168,7 +173,7 @@ async function api(req, res, url) {
         return send(res, 200, {
           athlete: a,
           sessions: q.history.all(parts[1]).map(r => ({
-            sessionId: r.sessionId, startedAt: r.startedAt, durationS: r.durationS, maxHr: r.maxHr,
+            sessionId: r.sessionId, startedAt: r.startedAt, durationS: r.durationS, room: r.room, maxHr: r.maxHr,
             avgHr: r.avgHr, peakHr: r.peakHr, kcal: r.kcal, points: r.points,
             zoneSecs: [r.z0, r.z1, r.z2, r.z3, r.z4, r.z5]
           }))

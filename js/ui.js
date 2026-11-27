@@ -161,7 +161,9 @@
         const t = this.tiles.get(u.id);
         // 'demo' (simulated), 'on' (watch connected), 'lost' (reconnecting), 'none' (no watch yet)
         const ws = this.watchState ? this.watchState(u.id) : 'demo';
-        const quiet = ws === 'none' ? 'אין שעון' : ws === 'lost' ? 'מתחבר מחדש' : 'אין אות';
+        const pending = u.id === this.pendingId;
+        const quiet = pending ? 'בוחרים שעון…' : ws === 'none' ? 'אין שעון' : ws === 'lost' ? 'מתחבר מחדש' : 'אין אות';
+        t.el.classList.toggle('pending', pending);
         t.el.style.setProperty('--zc', z.color);
         t.el.classList.toggle('off', stale);
         t.el.dataset.watch = ws;
@@ -241,7 +243,9 @@
       $('#live').hidden = true;
       $('#summary').hidden = false;
 
+      const room = this.roomName ? this.roomName() : '';
       $('#sumMeta').innerHTML =
+        (room ? `<span>חדר <b>${esc(room)}</b></span>` : '') +
         `<span>משך האימון <b class="num">${fmtTime(s.elapsed)}</b></span>` +
         `<span><b class="num">${ranking.length}</b> מתאמנים</span>` +
         `<span><b class="num">${fmtInt(s.totalKcal)}</b> קלוריות</span>`;

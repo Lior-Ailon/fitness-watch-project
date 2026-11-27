@@ -29,6 +29,7 @@
         <svg class="ecg l" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="100" d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
         <h1><i class="live-dot" aria-hidden="true"></i>LIVE WORKOUT</h1>
         <span id="modeChip" class="mode-chip" hidden>הדגמה</span>
+        <button type="button" id="roomChip" class="room-chip" data-only="live" title="החלפת חדר"><small>חדר</small><b id="roomChipText"></b></button>
         <svg class="ecg r" viewBox="0 0 120 40" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="100" d="M0 22h34l6-14 8 30 7-24 5 8h60"/></svg>
       </div>
 
@@ -164,6 +165,7 @@
       <div class="hi-who">
         <select id="hiWho" aria-label="מתאמן"></select>
         <span id="hiSub"></span>
+        <select id="hiRoom" class="hi-room" aria-label="סינון לפי חדר" hidden></select>
       </div>
       <p id="hiLead" class="hi-lead"></p>
       <div class="hi-tabs" id="hiTabs" role="group" aria-label="מה להשוות">
@@ -175,7 +177,7 @@
       <div id="hiChart" class="hi-chart"></div>
       <div class="hi-scroll">
         <table class="hi-table" id="hiTable">
-          <thead><tr><th>תאריך</th><th>משך</th><th>נקודות</th><th>דופק ממוצע</th><th>שיא</th><th>קלוריות</th><th>חלוקה לאזורים</th><th>מול הקודם</th></tr></thead>
+          <thead><tr><th>תאריך</th><th>חדר</th><th>משך</th><th>נקודות</th><th>דופק ממוצע</th><th>שיא</th><th>קלוריות</th><th>חלוקה לאזורים</th><th>מול הקודם</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -235,6 +237,11 @@
           <p id="peopleEmpty" class="roster-empty" hidden>עדיין אין מתאמנים. מוסיפים מתאמן, או מחברים שעון והמתאמן נוסף מעצמו.</p>
         </div>
         <button type="button" id="btnAddPerson" class="ghost add-btn">הוספת מתאמן</button>
+
+        <h3 class="rm-h">חדרים</h3>
+        <p class="hint">לפני כל אימון בוחרים באיזה חדר הוא מתקיים. החדר נשמר עם האימון, וביומן אפשר להשוות בין אימונים באותו חדר.</p>
+        <div id="roomsEditor" class="rooms-editor"></div>
+        <button type="button" id="btnAddRoom" class="ghost add-btn">הוספת חדר</button>
       </div>
 
       <div class="s-btns">
@@ -247,7 +254,8 @@
 
   <dialog id="assign" class="narrow" aria-labelledby="asTitle">
     <form method="dialog" class="s-form">
-      <h2 id="asTitle">למי שייך <bdi id="asName"></bdi>?</h2>
+      <h2 id="asTitle"><span id="asTitleA">למי שייך <bdi id="asName"></bdi>?</span><span id="asTitleB" hidden>למי מחברים שעון?</span></h2>
+      <p class="hint" id="asHint" hidden></p>
       <label class="field" id="asWhoWrap">
         <span>מתאמן</span>
         <select id="asWho"></select>
@@ -259,9 +267,18 @@
         <label class="field"><span>מין</span><select id="asSex"><option value="f">נקבה</option><option value="m">זכר</option></select></label>
       </div>
       <div class="s-btns">
-        <button class="primary" value="ok">שמירה</button>
+        <button class="primary" value="ok" id="asOk">שמירה</button>
         <button class="ghost" value="cancel">ביטול</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="rooms" class="narrow" aria-labelledby="rmTitle">
+    <form method="dialog" class="s-form">
+      <h2 id="rmTitle">באיזה חדר האימון?</h2>
+      <div id="rmList" class="rm-list" role="group" aria-labelledby="rmTitle"></div>
+      <p class="hint">אפשר להוסיף חדרים ולשנות שמות בהגדרות.</p>
+      <div class="s-btns"><button class="ghost" value="cancel">סגירה</button></div>
     </form>
   </dialog>
 

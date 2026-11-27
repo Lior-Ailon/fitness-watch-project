@@ -38,6 +38,7 @@
 
   let current = null;   // { athlete, sessions } newest first
   let metric = 'points';
+  let roomFilter = '*';  // '*' = every room, otherwise the room name ('' = workouts without a room)
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -78,6 +79,7 @@
   async function show(id) {
     try { current = await HR.Api.history(id); }
     catch (e) { setMsg('לא הצלחתי לטעון את היומן.'); return; }
+    roomFilter = '*';
     $('#hiBody').hidden = false;
     render();
   }
@@ -98,8 +100,20 @@
   }
 
   function render() {
-    const { athlete, sessions } = current;
-    if (!athlete || !sessions.length) { $('#hiBody').hidden = true; return; }
+    const { athlete } = current;
+    if (!athlete || !current.sessions.length) { $('#hiBody').hidden = true; return; }
+
+    // Compare like with like: a spinning class and a pilates class are not measured against each other.
+    const roomsSeen = [...new Set(current.sessions.map(s => s.room || ''))];
+    const rsel = $('#hiRoom');
+    rsel.hidden = roomsSeen.length < 2;
+    rsel.innerHTML = '';
+    const opt = (v, t) => { const o = el('option', '', t); o.value = v; rsel.appendChild(o); };
+    opt('*', 'כל החדרים');
+    for (const r of roomsSeen) opt(r, r || 'ללא חדר');
+    if (roomFilter !== '*' && !roomsSeen.includes(roomFilter)) roomFilter = '*';
+    rsel.value = roomFilter;
+    const sessions = roomFilter === '*' ? current.sessions : current.sessions.filter(s => (s.room || '') === roomFilter);
     const m = METRICS[metric];
     const chrono = [...sessions].reverse();            // oldest first
     const vals = chrono.map(m.get);
@@ -126,6 +140,7 @@
       } else vs.textContent = '·';
 
       tr.append(date,
+        el('td', '', s.room || '·'),
         el('td', 'num', fmtTime(s.durationS)),
         el('td', 'num hi-key', String(a)),
         el('td', 'num', String(s.avgHr)),
@@ -193,6 +208,7 @@
 
   /* ---------- wiring ---------- */
   $('#hiWho').addEventListener('change', e => show(e.target.value));
+  $('#hiRoom').addEventListener('change', e => { roomFilter = e.target.value; if (current) render(); });
   $('#hiTabs').addEventListener('click', e => {
     const b = e.target.closest('button[data-m]');
     if (!b) return;
