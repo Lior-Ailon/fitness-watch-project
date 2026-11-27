@@ -21,6 +21,11 @@
 
   let speed = parseInt(params.get('speed'), 10) || saved.speed || 1;
   let layout = saved.layout || 'ref';
+  // 'personal' = every trainee has a watch of their own, remembered for the next workout.
+  // 'studio'   = the studio owns numbered bracelets, and who wears which one is chosen for each workout.
+  let equip = saved.equip === 'studio' ? 'studio' : 'personal';
+  /** Studio bracelets by Bluetooth device id: { id, label, deviceName }. The label sticks to the id. */
+  let bracelets = Array.isArray(saved.bracelets) ? saved.bracelets.filter(b => b && b.id).map(b => ({ ...b })) : [];
   // 'live' = real watches only. 'demo' = the simulated class, kept as a showcase.
   const devDemo = params.get('n') || params.get('speed') || params.get('summary');
   let mode = params.get('mode') || (devDemo ? 'demo' : saved.mode) || 'live';
@@ -39,8 +44,35 @@
   const watchOf = userId => { for (const w of watches.values()) if (w.userId === userId) return w; return null; };
   ui.watchState = id => (mode === 'demo' ? 'demo' : (watchOf(id) || { state: 'none' }).state);
 
-  function persist() { store.save({ roster, people, speed, layout, mode }); }
+  function persist() { store.save({ roster, people, speed, layout, mode, equip, bracelets }); }
   function applyLayout() { document.body.dataset.layout = layout; }
+
+  /* ---------- studio bracelets: a fixed number for each device ---------- */
+  const studio = () => equip === 'studio';
+  const braceletOf = id => bracelets.find(b => b.id === id) || null;
+  const labelOf = id => (braceletOf(id) || {}).label || '';
+  function ensureBracelet(id, deviceName) {
+    let b = braceletOf(id);
+    if (!b) {
+      const top = bracelets.reduce((m, x) => Math.max(m, parseInt((String(x.label).match(/(\d+)\s*$/) || [])[1], 10) || 0), 0);
+      b = { id, label: 'צמיד ' + (top + 1), deviceName };
+      bracelets.push(b);
+    } else b.deviceName = deviceName;
+    persist();
+    return b;
+  }
+  ui.tagOf = userId => { const w = (mode === 'live' && studio()) ? watchOf(userId) : null; return w ? labelOf(w.id) : ''; };
+
+  function applyEquip() {
+    document.body.dataset.equip = equip;
+    $('#equipIn').value = equip;
+    $('#equipHint').textContent = studio()
+      ? 'הצמידים שייכים לסטודיו ומקבלים מספר קבוע. בתחילת כל אימון בוחרים מי עונד איזה צמיד, וההיסטוריה נשמרת למתאמן ולא לצמיד.'
+      : 'כל מתאמן מחובר לשעון שלו. שעון שחובר פעם אחת משויך שוב לאותו מתאמן בחיבור הבא.';
+    $('#thWatch').textContent = studio() ? 'צמיד' : 'שעון';
+    $('#emptyStep3').textContent = studio() ? 'בוחרים מי עונד את הצמיד' : 'משייכים את השעון למתאמן';
+    restChip();
+  }
 
   /* ---------- status chip ---------- */
   const chip = $('#watchChip'), chipText = $('#chipText'), chipAct = $('#chipAct');
@@ -49,7 +81,8 @@
     const n = watches.size;
     chip.hidden = mode !== 'live' || n === 0;
     chip.dataset.state = '';
-    chipText.textContent = n === 1 ? 'שעון אחד מחובר' : n + ' שעונים מחוברים';
+    const unit = studio() ? ['צמיד אחד מחובר', ' צמידים מחוברים'] : ['שעון אחד מחובר', ' שעונים מחוברים'];
+    chipText.textContent = n === 1 ? unit[0] : n + unit[1];
     chipAct.hidden = true; chipRun = null;
   }
   /** A short message next to the buttons. ms = 0 keeps it until the next message. */
@@ -127,6 +160,8 @@
     clearInterval(liveTimer);
     saveSession();                                     // keep the workout that is about to be replaced
     sessionKey = null; unsaved = false;
+    // Studio bracelets stay connected but belong to nobody: who wears which one is chosen again.
+    if (studio()) for (const w of watches.values()) w.userId = null;
     session.setUsers(people.filter(p => watchOf(p.id)));   // the board shows whoever is connected now
     liveRunning = false;
     ui.build();
@@ -135,6 +170,7 @@
       if (liveRunning && !session.ended) session.elapsed += 1;
       ui.update();
     }, 1000);
+    if (studio() && watches.size) openBracelets();
   }
 
   /** Demo: ages are read now, and max HR / zones are fixed from them. */
@@ -196,6 +232,7 @@
     const w = watches.get(devId);
     if (!w || mode !== 'live' || session.ended) return;
     w.state = 'on';
+    if (!w.userId) return;                              // a studio bracelet nobody wears yet
     if (!liveRunning) { liveRunning = true; if (!sessionKey) { sessionKey = newKey(); sessionStart = Date.now(); } }
     unsaved = true;
     session.push(w.userId, bpm, dt);
@@ -244,24 +281,30 @@
     });
   }
 
-  /** Attach a connected source (Bluetooth watch or the local bridge) to a person. */
+  /** Attach a connected source (Bluetooth watch or the local bridge). Resolves to false when the
+      connection was cancelled. A studio bracelet may stay unassigned until "who wears what" is answered. */
   async function attach(devId, src, name, forId) {
     const old = watches.get(devId);
     let person = forId ? people.find(p => p.id === forId) : null;
     if (!person && old) person = people.find(p => p.id === old.userId);
-    if (!person) person = people.find(p => p.deviceId === devId && !watchOf(p.id));
-    if (!person) person = await askAssign(name);
-    if (!person) return null;
-    const prev = watchOf(person.id);
-    if (prev && prev.id !== devId) dropWatch(prev.id);      // one watch per person
-    person.deviceId = devId; person.deviceName = name;
-    watches.set(devId, { id: devId, src, userId: person.id, name, state: 'on' });
+    if (!person && !studio()) person = people.find(p => p.deviceId === devId && !watchOf(p.id));
+    if (!person && !studio()) person = await askAssign(name);
+    if (!person && !studio()) return false;
+
+    const tag = studio() ? ensureBracelet(devId, name).label : '';
+    if (person) {
+      const prev = watchOf(person.id);
+      if (prev && prev.id !== devId) dropWatch(prev.id);    // one watch per person
+      if (!studio()) { person.deviceId = devId; person.deviceName = name; }   // personal watches are remembered
+    }
+    watches.set(devId, { id: devId, src, userId: person ? person.id : null, name, state: 'on' });
     persist();
-    if (!session.byId(person.id)) session.addUser(person);
+    if (person && !session.byId(person.id)) session.addUser(person);
     ui.build(); ui.update();
     refillPeople();
-    flash(name + ' מחובר, משויך אל ' + person.name);
-    return person;
+    if (person) flash((tag || name) + ' מחובר, משויך אל ' + person.name);
+    else { flash(tag + ' מחובר. בוחרים מי עונד אותו', '', 8000); openBracelets(); }
+    return true;
   }
 
   async function connectWatch(opt = {}) {
@@ -304,8 +347,8 @@
     const old = watches.get(id);
     if (old && old.src !== src) { old.src.manual = true; old.src._cleanup(); }   // same watch picked twice
     devId = id;
-    const person = await attach(id, src, name, opt.forId);
-    if (!person) { devId = null; if (!old) src.disconnect(); else watches.delete(id); restChip(); flash('החיבור בוטל', '', 4000); }
+    const ok = await attach(id, src, name, opt.forId);
+    if (!ok) { devId = null; if (!old) src.disconnect(); else watches.delete(id); restChip(); flash('החיבור בוטל', '', 4000); }
   }
 
   /* Local bridge (tools/hr_bridge.py): reads one watch through Windows when the browser
@@ -321,8 +364,8 @@
     let timer = null, name = 'שעון דרך הגשר';
     try { const d = await (await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store' })).json(); if (d.name) name = d.name; } catch (e) { /* keep default name */ }
     const src = { disconnect() { clearInterval(timer); } };
-    const person = await attach('bridge', src, name, forId);
-    if (!person) { flash('החיבור בוטל', '', 4000); return; }
+    const ok = await attach('bridge', src, name, forId);
+    if (!ok) { flash('החיבור בוטל', '', 4000); return; }
     timer = setInterval(async () => {
       const w = watches.get('bridge');
       if (!w) { clearInterval(timer); return; }
@@ -344,7 +387,139 @@
   }
 
   /* ---------- settings: people & watches ---------- */
-  function refillPeople() { ui.fillPeople(people, id => watchOf(id)); }
+  function refillPeople() {
+    ui.fillPeople(people, id => {
+      const w = watchOf(id);
+      return w && { name: studio() ? labelOf(w.id) + ' · ' + w.name : w.name, state: w.state };
+    }, studio());
+  }
+
+  /* ---------- studio bracelets: who wears which one ---------- */
+  const brDraft = new Map();      // what was typed in the dialog, kept while it is redrawn
+  const brNum = b => parseInt((String(b.label).match(/(\d+)\s*$/) || [])[1], 10) || 1e9;
+
+  function captureBracelets() {
+    for (const r of document.querySelectorAll('#brList .br-row')) {
+      brDraft.set(r.dataset.id, {
+        label: r.querySelector('.br-label').value, who: r.querySelector('.br-who').value,
+        nName: r.querySelector('.br-nname').value, nAge: r.querySelector('.br-nage').value,
+        nWeight: r.querySelector('.br-nweight').value, nSex: r.querySelector('.br-nsex').value
+      });
+    }
+  }
+
+  function renderBracelets() {
+    const list = $('#brList');
+    list.innerHTML = '';
+    const live = [...watches.values()].sort((a, b) => brNum(braceletOf(a.id) || {}) - brNum(braceletOf(b.id) || {}));
+    $('#brEmpty').hidden = live.length > 0;
+    $('#brOk').hidden = live.length === 0;
+    const away = bracelets.filter(b => !watches.has(b.id));
+    $('#brAway').hidden = away.length === 0;
+    $('#brAway').textContent = away.length ? 'רשומים ולא מחוברים כרגע: ' + away.map(b => b.label).join(', ') : '';
+
+    for (const w of live) {
+      const b = braceletOf(w.id) || { label: w.name };
+      const d = brDraft.get(w.id) || {};
+      const row = document.createElement('div');
+      row.className = 'br-row';
+      row.dataset.id = w.id;
+      row.dataset.state = w.state;
+      row.innerHTML = `
+        <div class="br-id">
+          <input type="text" class="br-label" maxlength="16" aria-label="שם הצמיד" autocomplete="off">
+          <small class="br-dev"></small>
+        </div>
+        <select class="br-who" aria-label="מי עונד את הצמיד"></select>
+        <div class="br-new" hidden>
+          <input type="text" class="br-nname" maxlength="24" dir="auto" autocomplete="off" aria-label="שם המתאמן החדש" placeholder="שם המתאמן">
+          <input type="number" class="br-nage" min="10" max="95" inputmode="numeric" aria-label="גיל" value="30">
+          <input type="number" class="br-nweight" min="30" max="200" inputmode="numeric" aria-label="משקל" value="70">
+          <select class="br-nsex" aria-label="מין"><option value="f">נקבה</option><option value="m">זכר</option></select>
+        </div>`;
+      row.querySelector('.br-label').value = d.label != null ? d.label : b.label;
+      const short = HR.BleSource.shortId(w.id);
+      row.querySelector('.br-dev').textContent = w.id === 'bridge' || w.name.includes(short) ? w.name : w.name + ' · ' + short;
+      row.querySelector('.br-dev').title = 'מזהה Bluetooth של הצמיד: ' + w.id;
+
+      const who = row.querySelector('.br-who');
+      const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; who.appendChild(o); };
+      add('', 'בוחרים מתאמן…');
+      for (const p of people) add(p.id, p.name);
+      add('__new', '＋ מתאמן חדש');
+      who.value = d.who != null ? d.who : (w.userId || '');
+      if (who.value !== (d.who != null ? d.who : (w.userId || ''))) who.value = '';
+      const nw = row.querySelector('.br-new');
+      const sync = () => { nw.hidden = who.value !== '__new'; row.dataset.set = who.value ? '1' : ''; };
+      who.addEventListener('change', () => { sync(); if (!nw.hidden) row.querySelector('.br-nname').focus(); });
+      row.querySelector('.br-nname').value = d.nName || '';
+      if (d.nAge) row.querySelector('.br-nage').value = d.nAge;
+      if (d.nWeight) row.querySelector('.br-nweight').value = d.nWeight;
+      if (d.nSex) row.querySelector('.br-nsex').value = d.nSex;
+      sync();
+      list.appendChild(row);
+    }
+  }
+
+  function openBracelets() {
+    if (mode !== 'live') return;
+    const dlg = $('#bracelets');
+    if (dlg.open) captureBracelets(); else brDraft.clear();
+    renderBracelets();
+    $('#brErr').hidden = true;
+    if (!dlg.open) dlg.showModal();
+  }
+
+  /** Returns an error text, or '' once everything was applied. */
+  function applyBracelets() {
+    const rows = [...document.querySelectorAll('#brList .br-row')];
+    const num = (el, lo, hi, d) => { const v = parseInt(el.value, 10); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+    const used = new Set();
+    for (const r of rows) {
+      const v = r.querySelector('.br-who').value;
+      if (!v || v === '__new') continue;
+      if (used.has(v)) return 'מתאמן אחד לא יכול לעבוד עם שני צמידים. בוחרים מתאמן אחר באחד מהם.';
+      used.add(v);
+    }
+    for (const r of rows) {
+      const id = r.dataset.id, w = watches.get(id);
+      if (!w) continue;
+      const b = braceletOf(id);
+      const label = r.querySelector('.br-label').value.trim();
+      if (b && label) b.label = label;
+      const v = r.querySelector('.br-who').value;
+      let person = null;
+      if (v === '__new') {
+        person = newPerson({
+          name: r.querySelector('.br-nname').value.trim() || ('מתאמן ' + (people.length + 1)),
+          age: num(r.querySelector('.br-nage'), 10, 95, 30), weight: num(r.querySelector('.br-nweight'), 30, 200, 70),
+          sex: r.querySelector('.br-nsex').value === 'm' ? 'm' : 'f'
+        });
+        people.push(person);
+      } else if (v) person = people.find(p => p.id === v) || null;
+      w.userId = person ? person.id : null;
+    }
+    persist();
+    syncLive();
+    refillPeople();
+    restChip();
+    return '';
+  }
+
+  $('#brOk').addEventListener('click', () => {
+    const err = applyBracelets();
+    const e = $('#brErr');
+    e.textContent = err; e.hidden = !err;
+    if (!err) { $('#bracelets').close('ok'); flash('השיוך נשמר', '', 4000); }
+  });
+  $('#brConnect').addEventListener('click', () => { captureBracelets(); connectWatch(); });
+  $('#btnBracelets').addEventListener('click', openBracelets);
+  $('#bracelets').addEventListener('click', e => { if (e.target === $('#bracelets')) $('#bracelets').close(); });
+  $('#equipIn').addEventListener('change', e => {
+    if (settings.open) applyPeopleEdits();
+    equip = e.target.value === 'studio' ? 'studio' : 'personal';
+    persist(); applyEquip(); refillPeople(); syncLive(); ui.update();
+  });
   function applyPeopleEdits() {
     if (mode !== 'live') return;
     people = ui.readPeople(people);
@@ -418,6 +593,7 @@
 
   window.addEventListener('resize', () => ui.update());
   applyLayout();
+  applyEquip();
   fillSettings();
   setMode(mode);
 

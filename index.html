@@ -52,6 +52,11 @@
             <button type="button" id="btnWatch2" class="pill-btn solid">חיבור שעון</button>
             <button type="button" id="btnDemo2" class="pill-btn">לראות הדגמה</button>
           </div>
+          <ol class="empty-steps">
+            <li><b class="num">1</b><span>מפעילים שידור דופק בשעון</span></li>
+            <li><b class="num">2</b><span>לוחצים "חיבור שעון"</span></li>
+            <li><b class="num">3</b><span id="emptyStep3">משייכים את השעון למתאמן</span></li>
+          </ol>
           <button type="button" id="btnHelp2" class="link-btn">איך מחברים שעון?</button>
         </div>
       </section>
@@ -73,6 +78,7 @@
       <div class="tools">
         <span id="watchChip" class="watch-chip" hidden aria-live="polite"><span id="chipText"></span><button type="button" id="chipAct" hidden></button></span>
         <button type="button" id="btnWatch" class="pill-btn solid" data-only="live">חיבור שעון</button>
+        <button type="button" id="btnBracelets" class="pill-btn" data-only="live" data-equip-only="studio">שיוך צמידים</button>
         <button type="button" id="btnDemo" class="pill-btn">הדגמה</button>
         <button type="button" id="btnHistory" class="pill-btn" data-only="live">יומן</button>
         <button type="button" id="btnEnd" class="pill-btn">סיום אימון</button>
@@ -210,10 +216,18 @@
 
       <div data-only="live">
         <h3>מתאמנים ושעונים</h3>
-        <p class="hint">אזורי הדופק נקבעים לפי הגיל, והקלוריות לפי המשקל והמין. שעון שחובר פעם אחת משויך שוב לאותו מתאמן בחיבור הבא.</p>
+        <label class="field equip-field">
+          <span>סוג הצמידים</span>
+          <select id="equipIn">
+            <option value="personal">צמיד אישי: לכל מתאמן שעון משלו</option>
+            <option value="studio">צמידי סטודיו: משייכים צמיד למתאמן בכל אימון</option>
+          </select>
+        </label>
+        <p class="hint" id="equipHint"></p>
+        <p class="hint">אזורי הדופק נקבעים לפי הגיל, והקלוריות לפי המשקל והמין.</p>
         <div class="roster-wrap">
           <table class="roster" id="peopleTable">
-            <thead><tr><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>מין</th><th>דופק מקס'</th><th>שעון</th><th><span class="sr">הסרה</span></th></tr></thead>
+            <thead><tr><th>שם</th><th>גיל</th><th>משקל (ק"ג)</th><th>מין</th><th>דופק מקס'</th><th id="thWatch">שעון</th><th><span class="sr">הסרה</span></th></tr></thead>
             <tbody></tbody>
           </table>
           <p id="peopleEmpty" class="roster-empty" hidden>עדיין אין מתאמנים. מוסיפים מתאמן, או מחברים שעון והמתאמן נוסף מעצמו.</p>
@@ -249,6 +263,26 @@
     </form>
   </dialog>
 
+  <dialog id="bracelets" class="hist" aria-labelledby="brTitle">
+    <form method="dialog" class="s-form" id="brForm">
+      <div class="d-head">
+        <div>
+          <h2 id="brTitle">מי עונד איזה צמיד</h2>
+          <p class="d-sub">לכל צמיד מספר קבוע. בוחרים לכל צמיד את המתאמן של האימון הזה, וההיסטוריה נשמרת למתאמן.</p>
+        </div>
+      </div>
+      <div id="brList" class="br-list"></div>
+      <p id="brEmpty" class="roster-empty" hidden>אין צמידים מחוברים. לוחצים על "חיבור צמיד נוסף" ובוחרים צמיד מהרשימה של הדפדפן.</p>
+      <p id="brAway" class="hint" hidden></p>
+      <p id="brErr" class="br-err" role="alert" hidden></p>
+      <div class="s-btns">
+        <button type="button" class="primary" id="brOk">התחלה</button>
+        <button type="button" class="ghost" id="brConnect">חיבור צמיד נוסף</button>
+        <button class="ghost" value="cancel">סגירה</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="help" aria-labelledby="hTitle">
     <form method="dialog" class="d-head">
       <h2 id="hTitle">איך מחברים שעון</h2>
@@ -273,6 +307,8 @@
       <div><dt>Samsung Galaxy Watch</dt><dd>אין בו שידור דופק מובנה ואין אפליקציה רשמית שעושה את זה. נשארות שתי דרכים: אפליקציית צד שלישי לשעון שמשדרת דופק ב-Bluetooth (לא נבדקה כאן), או רצועת דופק.</dd></div>
       <div><dt>Apple Watch, Fitbit</dt><dd>לא משדרים דופק בתקן הזה בעצמם. צריך אפליקציית עזר שמשדרת את הדופק, או רצועת דופק.</dd></div>
     </dl>
+    <h3>צמידי סטודיו</h3>
+    <p class="hint">בהגדרות אפשר לעבור ל"צמידי סטודיו". כל צמיד מקבל מספר קבוע ("צמיד 1", "צמיד 2") לפי המזהה של Bluetooth, ובתחילת כל אימון בוחרים מי עונד איזה צמיד. אפשר להחליף את המספר בשם משלכם בחלון "שיוך צמידים".</p>
     <p class="hint">השעון לא ברשימה? מוודאים שהשידור פועל ושהשעון לא מחובר כרגע למכשיר אחר, ואז לוחצים על "הצגת כל המכשירים" שמופיע אחרי שסוגרים את הרשימה.</p>
   </dialog>
 

@@ -12,6 +12,7 @@
   const pad = n => String(n).padStart(2, '0');
   const fmtTime = s => { s = Math.floor(s); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
   const fmtInt = n => Math.round(n).toLocaleString('en-US');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('');
 
   /** Pick columns x rows so tiles come out close to a 1.3:1 landscape card. */
@@ -80,7 +81,7 @@
         el.setAttribute('role', 'button');
         el.innerHTML = `
           <div class="content">
-            <div class="t-name"><span class="name"></span><span class="crown-slot"></span><i class="w-dot" aria-hidden="true"></i></div>
+            <div class="t-name"><span class="name"></span><span class="crown-slot"></span><small class="w-tag"></small><i class="w-dot" aria-hidden="true"></i></div>
             <div class="t-body">
               <div class="t-data">
                 <div class="bpm num"><b>--</b><small>BPM</small></div>
@@ -107,6 +108,7 @@
         this.tiles.set(u.id, {
           el,
           crown: el.querySelector('.crown-slot'),
+          tag: el.querySelector('.w-tag'),
           bpm: el.querySelector('.bpm b'),
           cal: el.querySelector('.cal b'),
           pct: el.querySelector('.ring-c b'),
@@ -118,7 +120,8 @@
       const board = $('#board');
       board.innerHTML = '';
       this.rows.clear();
-      board.style.setProperty('--n', Math.min(BOARD_ROWS, users.length));
+      // Few trainees: rows keep the height of a half-full board instead of stretching.
+      board.style.setProperty('--n', Math.max(5, Math.min(BOARD_ROWS, users.length)));
       for (const u of users) {
         const li = document.createElement('li');
         li.className = 'row';
@@ -148,6 +151,7 @@
       const ranking = s.ranking;
       const counts = new Array(HR.ZONES.length).fill(0);
       let hrSum = 0, hrN = 0;
+      const topPts = ranking.length ? ranking[0].points : 0;
 
       ranking.forEach((u, i) => {
         const stale = !u.live || now - u.lastSeen > STALE_MS;
@@ -161,6 +165,7 @@
         t.el.style.setProperty('--zc', z.color);
         t.el.classList.toggle('off', stale);
         t.el.dataset.watch = ws;
+        t.tag.textContent = this.tagOf ? this.tagOf(u.id) : '';
         t.el.title = stale ? quiet : z.name;
         t.bpm.textContent = stale ? '--' : u.hr;
         t.cal.textContent = fmtInt(u.kcal);
@@ -177,6 +182,7 @@
         r.el.style.setProperty('--i', i);
         r.el.style.setProperty('--zc', z.color);
         r.el.dataset.rank = i + 1;
+        r.el.style.setProperty('--share', topPts > 0 ? (u.points / topPts * 100).toFixed(1) : '0');
         r.rank.textContent = (i + 1) + '.';
         r.crown.innerHTML = i < 3 ? crown(MEDAL[i]) : '';
         r.pts.textContent = Math.floor(u.points);
@@ -245,17 +251,19 @@
       $('#podium').innerHTML = order.map(i => {
         const u = ranking[i];
         return `<div class="pod p${i + 1}" style="--c:${MEDAL[i]}">
-          <div class="avatar"><span>${initials(u.name)}</span><i class="medal num">${i + 1}</i></div>
-          <div class="pod-card"><b>${u.name}</b><span><span class="num">${Math.floor(u.points)}</span> נקודות</span></div>
+          <div class="avatar"><span>${esc(initials(u.name))}</span></div>
+          <div class="pod-card"><b>${esc(u.name)}</b><span><span class="num">${Math.floor(u.points)}</span> נקודות</span></div>
+          <div class="pod-step"><span class="num">${i + 1}</span></div>
         </div>`;
       }).join('');
 
       const tbody = $('#sumTable tbody');
       $('#sumTable').style.setProperty('--rows', ranking.length);
+      $('#sumTable').classList.toggle('fill', ranking.length >= 8);
       tbody.innerHTML = ranking.map((u, i) => `
         <tr>
           <td class="c-rank num">${i + 1}</td>
-          <td class="c-name"><bdi>${u.name}</bdi></td>
+          <td class="c-name"><bdi>${esc(u.name)}</bdi></td>
           <td class="z5 num">${fmtTime(u.zoneSecs[5])}</td>
           <td class="z4 num">${fmtTime(u.zoneSecs[4])}</td>
           <td class="z3 num">${fmtTime(u.zoneSecs[3])}</td>
@@ -316,7 +324,7 @@
 
     /* ---------- people & watches (settings dialog, real board) ---------- */
     /** @param {Array} people  @param {(id:string)=>{name:string,state:string}|null} watchOf */
-    fillPeople(people, watchOf) {
+    fillPeople(people, watchOf, studio) {
       const tbody = $('#peopleTable tbody');
       tbody.innerHTML = '';
       $('#peopleEmpty').hidden = people.length > 0;
@@ -337,7 +345,8 @@
         tr.querySelector('.r-weight').value = p.weight;
         tr.querySelector('.r-sex').value = p.sex === 'm' ? 'm' : 'f';
         const st = tr.querySelector('.w-state'), btn = tr.querySelector('.w-btn');
-        st.textContent = w ? (w.state === 'lost' ? w.name + ' · מתחבר מחדש' : w.name) : (p.deviceName ? p.deviceName + ' · לא מחובר' : 'אין שעון');
+        st.textContent = w ? (w.state === 'lost' ? w.name + ' · מתחבר מחדש' : w.name)
+          : studio ? 'אין צמיד' : (p.deviceName ? p.deviceName + ' · לא מחובר' : 'אין שעון');
         st.dataset.state = w ? w.state : 'none';
         btn.textContent = w ? 'ניתוק' : 'חיבור';
         btn.addEventListener('click', () => this.onPeople && this.onPeople(w ? 'unwatch' : 'watch', p.id));
