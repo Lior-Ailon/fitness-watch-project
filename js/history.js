@@ -17,6 +17,7 @@
 
   HR.Api = {
     saveSession: payload => call('POST', '/api/sessions', payload),
+    removeSession: id => call('DELETE', '/api/sessions/' + encodeURIComponent(id)),
     athletes: () => call('GET', '/api/athletes'),
     history: id => call('GET', '/api/athletes/' + encodeURIComponent(id) + '/history'),
     removeAthlete: id => call('DELETE', '/api/athletes/' + encodeURIComponent(id))

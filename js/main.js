@@ -155,13 +155,13 @@
   }, 60000);
 
   /** Real board: the clock starts with the first heartbeat that arrives. */
-  function startLive() {
+  function startLive(keepWearers) {
     demo.stop();
     clearInterval(liveTimer);
     saveSession();                                     // keep the workout that is about to be replaced
     sessionKey = null; unsaved = false;
     // Studio bracelets stay connected but belong to nobody: who wears which one is chosen again.
-    if (studio()) for (const w of watches.values()) w.userId = null;
+    if (studio() && !keepWearers) for (const w of watches.values()) w.userId = null;
     session.setUsers(people.filter(p => watchOf(p.id)));   // the board shows whoever is connected now
     liveRunning = false;
     ui.build();
@@ -170,8 +170,44 @@
       if (liveRunning && !session.ended) session.elapsed += 1;
       ui.update();
     }, 1000);
-    if (studio() && watches.size) openBracelets();
+    if (studio() && !keepWearers && watches.size) openBracelets();
   }
+
+  /** Throw the running workout away and start from zero: same trainees, same watches, nothing saved.
+      A copy that was already saved along the way is removed from the server too. */
+  async function resetSession() {
+    const warn = mode === 'live' && sessionKey
+      ? 'לאפס את האימון? הנתונים של האימון הנוכחי יימחקו ולא יישמרו ביומן.'
+      : 'לאפס את האימון ולהתחיל מאפס?';
+    if (!confirm(warn)) return;
+    if (mode === 'demo') { startDemo(); return; }
+    const key = sessionKey;
+    sessionKey = null; unsaved = false;                // nothing is left to save
+    await saveChain;                                   // a save already on its way finishes first
+    if (key) {
+      try { await HR.Api.removeSession(key); }
+      catch (e) { flash('האימון אופס, אבל העותק שנשמר בשרת לא נמחק', 'error', 10000); }
+    }
+    setSaveNote('');
+    startLive(true);
+    flash('האימון אופס', '', 4000);
+  }
+  $('#btnReset').addEventListener('click', resetSession);
+
+  /** A clean start: the workout so far is kept in the logbook, every watch is disconnected and the
+      board is empty until watches are connected again. The trainee list itself stays. */
+  async function newWorkout(ask) {
+    if (mode === 'demo') { fillSettings(); $('#settings').showModal(); return; }
+    if (ask && !session.ended && sessionKey && !confirm('להתחיל אימון חדש? האימון הנוכחי יישמר ביומן והשעונים ינותקו.')) return;
+    const saved = await saveSession();                 // keep the workout that is about to be replaced
+    if (saved === 'failed' && !confirm('האימון הנוכחי לא נשמר בשרת. להמשיך בכל זאת? הנתונים שלו יאבדו.')) return;
+    for (const id of [...watches.keys()]) dropWatch(id);
+    setSaveNote('');
+    startLive();
+    refillPeople(); restChip();
+    flash('אימון חדש. מחברים שעונים כדי להתחיל', '', 5000);
+  }
+  $('#btnNewLive').addEventListener('click', () => newWorkout(true));
 
   /** Demo: ages are read now, and max HR / zones are fixed from them. */
   function startDemo() {
@@ -249,15 +285,16 @@
   const newPerson = (over = {}) => ({ id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), name: 'מתאמן ' + (people.length + 1), age: 30, weight: 70, sex: 'f', ...over });
 
   /** Ask who wears the watch that was just connected. Resolves to a person, or null on cancel. */
-  function askAssign(deviceName) {
+  function askAssign(deviceName, suggestedId) {
     return new Promise(resolve => {
       const dlg = $('#assign'), who = $('#asWho');
-      const free = people.filter(p => !watchOf(p.id));
+      const free = people.filter(p => !watchOf(p.id) || p.id === suggestedId);
       $('#asName').textContent = deviceName;
       who.innerHTML = '';
       for (const p of free) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; who.appendChild(o); }
-      const o = document.createElement('option'); o.value = '__new'; o.textContent = 'מתאמן חדש'; who.appendChild(o);
-      who.value = '__new';
+      const o = document.createElement('option'); o.value = '__new'; o.textContent = 'מתאמן חדש (רושמים שם)'; who.appendChild(o);
+      // The trainee who wore this watch last time is offered first, but the name can always be changed.
+      who.value = free.some(p => p.id === suggestedId) ? suggestedId : '__new';
       $('#asWhoWrap').hidden = free.length === 0;
       $('#asPName').value = '';
       $('#asPName').placeholder = 'מתאמן ' + (people.length + 1);
@@ -286,10 +323,14 @@
   async function attach(devId, src, name, forId) {
     const old = watches.get(devId);
     let person = forId ? people.find(p => p.id === forId) : null;
-    if (!person && old) person = people.find(p => p.id === old.userId);
-    if (!person && !studio()) person = people.find(p => p.deviceId === devId && !watchOf(p.id));
-    if (!person && !studio()) person = await askAssign(name);
-    if (!person && !studio()) return false;
+    // Every time a watch is connected the name is asked again. Only a watch chosen for a named
+    // trainee from the settings table skips the question.
+    if (!person && !studio()) {
+      const last = old ? people.find(p => p.id === old.userId) : people.find(p => p.deviceId === devId);
+      person = await askAssign(name, last && last.id);
+      if (!person) return false;
+    }
+    if (!person && studio() && old) person = people.find(p => p.id === old.userId) || null;
 
     const tag = studio() ? ensureBracelet(devId, name).label : '';
     if (person) {
@@ -302,8 +343,8 @@
     if (person && !session.byId(person.id)) session.addUser(person);
     ui.build(); ui.update();
     refillPeople();
-    if (person) flash((tag || name) + ' מחובר, משויך אל ' + person.name);
-    else { flash(tag + ' מחובר. בוחרים מי עונד אותו', '', 8000); openBracelets(); }
+    if (studio() && !forId) { flash(tag + ' מחובר. בוחרים מי עונד אותו או רושמים שם', '', 8000); openBracelets(); }
+    else if (person) flash((tag || name) + ' מחובר, משויך אל ' + person.name);
     return true;
   }
 
@@ -572,10 +613,7 @@
     if (confirm('לסיים את האימון ולהציג סיכום?')) endWorkout();
   });
   $('#btnBack').addEventListener('click', () => { session.ended = false; setSaveNote(''); ui.showLive(); if (mode === 'demo') demo.start(); });
-  $('#btnNew').addEventListener('click', () => {
-    if (mode === 'demo') { fillSettings(); settings.showModal(); }
-    else startLive();                                     // same people and watches, numbers from zero
-  });
+  $('#btnNew').addEventListener('click', () => newWorkout(false));   // the workout was ended and saved already
 
   $('#btnWatch').addEventListener('click', () => connectWatch());
   $('#btnWatch2').addEventListener('click', () => connectWatch());

@@ -76,6 +76,7 @@ const q = {
            r.z0, r.z1, r.z2, r.z3, r.z4, r.z5
     FROM results r JOIN sessions s ON s.id = r.session_id
     WHERE r.athlete_id = ? ORDER BY s.started_at DESC LIMIT 300`),
+  deleteSession: db.prepare('DELETE FROM sessions WHERE id = ?'),
   deleteAthlete: db.prepare('DELETE FROM athletes WHERE id = ?')
 };
 
@@ -151,6 +152,12 @@ async function api(req, res, url) {
   if (m === 'GET' && parts[0] === 'health') return send(res, 200, { ok: true });
 
   if (m === 'POST' && parts[0] === 'sessions' && parts.length === 1) return send(res, 200, saveSession(await readBody(req)));
+
+  // A reset throws the running workout away, including the copy that was saved along the way.
+  if (m === 'DELETE' && parts[0] === 'sessions' && parts.length === 2 && ID.test(parts[1])) {
+    q.deleteSession.run(parts[1]);
+    return send(res, 200, { ok: true });
+  }
 
   if (parts[0] === 'athletes') {
     if (m === 'GET' && parts.length === 1) return send(res, 200, q.athletes.all());
