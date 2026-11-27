@@ -456,7 +456,17 @@
   }
 
   async function connectWatchInner(opt) {
-    if (isLocal && !watches.has('bridge') && await bridgeAlive()) return connectBridge(opt.forId);
+    if (isLocal) {
+      // The bridge reads every watch Windows can see, so several can be on the board at once.
+      const fresh = await bridgeFresh();
+      if (fresh && fresh.length) {
+        const done = await connectBridge(fresh, opt.forId);
+        if (done !== 'web') return;                       // 'web' = the watch is not in the bridge's list: use the browser's
+      } else if (fresh && !HR.BleSource.supported) {
+        flash('הגשר פועל אבל עוד לא מצא שעון חדש. מוודאים שהשעון דולק ומשדר דופק', 'error', 12000);
+        return;
+      }
+    }
     if (!HR.BleSource.supported) { showHelp(); return; }
 
     let devId = null;
@@ -501,32 +511,100 @@
     if (!ok) { devId = null; if (!old) src.disconnect(); else watches.delete(id); restChip(); flash('החיבור בוטל', '', 4000); }
   }
 
-  /* Local bridge (tools/hr_bridge.py): reads one watch through Windows when the browser
-     cannot see it. Only tried when the board itself runs on this computer. */
-  async function bridgeAlive() {
-    try {
-      const c = new AbortController(); setTimeout(() => c.abort(), 1200);
-      const r = await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store', signal: c.signal });
-      return r.ok;
-    } catch (e) { return false; }
+  /* Local bridge (tools/hr_bridge.py): reads every watch through Windows, for watches the browser
+     cannot see. Only tried when the board itself runs on this computer. Each watch it finds is a
+     device 'bridge:<address>', so any number of them can be on the board together. */
+  const BRIDGE = 'http://127.0.0.1:5174';
+  const bridgeId = d => 'bridge:' + d.id;
+  async function bridgeGet(path) {
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), 1200);
+    try { const r = await fetch(BRIDGE + path, { cache: 'no-store', signal: c.signal }); return r.ok ? await r.json() : null; }
+    catch (e) { return null; }
+    finally { clearTimeout(t); }
   }
-  async function connectBridge(forId) {
-    let timer = null, name = 'שעון דרך הגשר';
-    try { const d = await (await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store' })).json(); if (d.name) name = d.name; } catch (e) { /* keep default name */ }
-    const src = { disconnect() { clearInterval(timer); } };
-    const ok = await attach('bridge', src, name, forId);
+  /** The bridge's devices, or null when it is not running. An old single-watch bridge answers with one device. */
+  async function bridgeList() {
+    const j = await bridgeGet('/devices');
+    if (!j) return null;
+    if (Array.isArray(j.devices)) return j.devices;
+    return [{ id: 'main', name: j.name || 'שעון דרך הגשר', connected: !!j.connected, bpm: j.bpm, age: j.age }];
+  }
+  /** Devices the bridge is connected to that are not on the board yet; null when the bridge is not running. */
+  async function bridgeFresh() {
+    const list = await bridgeList();
+    return list && list.filter(d => d.connected && !watches.has(bridgeId(d)));
+  }
+
+  /** A live list of the watches the bridge holds: the heart rate moves on the one on your wrist. */
+  function pickBridgeDevice(forId) {
+    return new Promise(resolve => {
+      const dlg = $('#pickDev'), box = $('#pdList');
+      const person = people.find(p => p.id === forId);
+      $('#pdTitle').textContent = person ? 'איזה שעון של ' + person.name + '?' : 'איזה שעון לחבר?';
+      let alive = true, chosen = null;
+      const draw = async () => {
+        const fresh = await bridgeFresh();
+        if (!alive) return;
+        box.innerHTML = '';
+        if (!fresh || !fresh.length) { const p = document.createElement('p'); p.className = 'roster-empty'; p.textContent = 'אין שעונים חדשים. מדליקים את השעון וממתינים כמה שניות.'; box.appendChild(p); return; }
+        for (const d of fresh) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'pd-btn';
+          const nm = document.createElement('span'); nm.className = 'pd-name'; nm.textContent = (d.name || 'שעון') + ' · ' + HR.BleSource.shortId(d.id);
+          const hr = document.createElement('span'); hr.className = 'pd-bpm num';
+          const live = d.bpm > 0 && d.age != null && d.age < 5;
+          hr.textContent = live ? d.bpm : '--'; hr.dataset.live = live ? '1' : '';
+          b.append(nm, hr);
+          b.addEventListener('click', () => { chosen = d; dlg.close('ok'); });
+          box.appendChild(b);
+        }
+      };
+      draw();
+      const timer = setInterval(draw, 1000);
+      $('#pdWeb').onclick = () => { chosen = 'web'; dlg.close('ok'); };
+      dlg.returnValue = '';
+      dlg.addEventListener('close', () => { alive = false; clearInterval(timer); resolve(dlg.returnValue === 'ok' ? chosen : null); }, { once: true });
+      dlg.showModal();
+    });
+  }
+
+  /** Put one of the bridge's watches on the board. Resolves to 'web' when the watch is not in the list. */
+  async function connectBridge(fresh, forId) {
+    let dev = fresh[0];
+    if (fresh.length > 1) {
+      dev = await pickBridgeDevice(forId);
+      if (!dev) { flash('החיבור בוטל', '', 4000); return; }
+      if (dev === 'web') return 'web';
+    }
+    const id = bridgeId(dev);
+    let name = dev.name || 'שעון דרך הגשר';
+    if ([...watches.values()].some(w => w.id !== id && w.name === name)) name += ' · ' + HR.BleSource.shortId(dev.id);
+    const src = { disconnect() { /* the bridge keeps the link: the board just stops listening */ } };
+    const ok = await attach(id, src, name, forId);
     if (!ok) { flash('החיבור בוטל', '', 4000); return; }
-    timer = setInterval(async () => {
-      const w = watches.get('bridge');
-      if (!w) { clearInterval(timer); return; }
-      try {
-        const d = await (await fetch('http://127.0.0.1:5174/hr', { cache: 'no-store' })).json();
-        if (d.connected && d.bpm > 0 && d.age != null && d.age < 5) onBpm('bridge', d.bpm, 1);
-        else if (w.state !== 'lost') { w.state = 'lost'; ui.update(); }
-      } catch (e) {
-        watches.delete('bridge'); clearInterval(timer);
+    startBridgePolling();
+  }
+
+  let bridgeTimer = null, bridgeMisses = 0;
+  function startBridgePolling() {
+    if (bridgeTimer) return;
+    bridgeTimer = setInterval(async () => {
+      const mine = [...watches.values()].filter(w => w.id.startsWith('bridge:'));
+      if (!mine.length) { clearInterval(bridgeTimer); bridgeTimer = null; return; }
+      const list = await bridgeList();
+      if (!list) {
+        if (++bridgeMisses < 3) return;                   // one slow answer is not a stopped bridge
+        bridgeMisses = 0;
+        for (const w of mine) watches.delete(w.id);
         flash('הגשר המקומי נעצר. מפעילים שוב את start_bridge.bat', 'error', 12000);
-        ui.update(); refillPeople();
+        syncLive(); refillPeople(); ui.update();
+        return;
+      }
+      bridgeMisses = 0;
+      for (const w of mine) {
+        const d = list.find(x => bridgeId(x) === w.id);
+        if (d && d.connected && d.bpm > 0 && d.age != null && d.age < 5) onBpm(w.id, d.bpm, 1);
+        else if (w.state !== 'lost' && watches.get(w.id)) { w.state = 'lost'; ui.update(); }
       }
     }, 1000);
   }
@@ -589,7 +667,7 @@
         </div>`;
       row.querySelector('.br-label').value = d.label != null ? d.label : b.label;
       const short = HR.BleSource.shortId(w.id);
-      row.querySelector('.br-dev').textContent = w.id === 'bridge' || w.name.includes(short) ? w.name : w.name + ' · ' + short;
+      row.querySelector('.br-dev').textContent = w.id.startsWith('bridge:') || w.name.includes(short) ? w.name : w.name + ' · ' + short;
       row.querySelector('.br-dev').title = 'מזהה Bluetooth של הצמיד: ' + w.id;
 
       const who = row.querySelector('.br-who');

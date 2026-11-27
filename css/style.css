@@ -712,6 +712,19 @@ dialog.hist#bracelets { width: min(56rem, 94vw); }
 .tile.pending .badge { background: var(--paper); }
 .w-tag { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
 
+/* watches the bridge holds */
+.pd-list { display: grid; gap: .5rem; max-height: 40vh; overflow: auto; }
+.pd-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .8rem 1.1rem; font: inherit; color: var(--ink); cursor: pointer; text-align: start;
+  background: rgb(255 255 255 / .05); border: 1px solid var(--line-strong); border-radius: 1rem;
+  transition: background-color .15s;
+}
+.pd-btn:hover { background: rgb(255 255 255 / .12); }
+.pd-name { font-size: 1.15rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-bpm { flex: none; min-width: 3ch; font-size: 2rem; font-weight: 800; text-align: end; color: var(--ink-dim); }
+.pd-bpm[data-live="1"] { color: var(--z3); }
+
 /* rooms */
 .room-chip {
   direction: rtl; display: flex; align-items: center; gap: .55rem;
